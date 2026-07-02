@@ -1,47 +1,167 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Spatial in 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Render your first 3D scene with Spatial on Android — a working Cube, Sphere, and orbit camera in under five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+By the end of this guide you will have a fully working `@Composable` function that renders a `Cube`, a `Sphere`, and a ground `Plane` in a 3D scene, wired to a smooth orbit camera that responds to touch gestures. No OpenGL setup, no render loop management — just a composable tree that Spatial turns into a GPU-rendered frame.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+### Add dependencies
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+Spatial is distributed as local Gradle submodules. Open your **app-level** `build.gradle.kts` and declare the three public modules as implementation dependencies:
 
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation(project(":spatial-compose"))
+    implementation(project(":spatial-compose-runtime-adapter"))
+    implementation(project(":spatial-units"))
+}
+```
+
+- **`:spatial-compose`** — the declarative Compose API (`Scene`, `Element`, `Modifier3D`, `rememberCameraState`, `Gestures`)
+- **`:spatial-compose-runtime-adapter`** — provides `DefaultSceneRenderHostFactory`, which wires the Compose layer to the real OpenGL renderer
+- **`:spatial-units`** — typed unit extensions (`meters`, `cm`, `deg`) used in modifier chains
+
+### Create a CameraState
+
+Use `rememberCameraState` to create and remember a camera positioned in your scene:
+
+```kotlin
+val cameraState = rememberCameraState(
+    yaw   = 20f.deg,
+    pitch = (-12f).deg,
+    zoom  = 1.25f,
+)
+```
+
+- **`yaw`** — horizontal rotation around the world Y-axis, in degrees. Positive values rotate the camera to the right of the scene.
+- **`pitch`** — vertical tilt of the camera, in degrees. Negative values tilt the camera downward, so the scene is viewed slightly from above.
+- **`zoom`** — a unitless multiplier controlling how close the camera sits to the orbit target. Values below `1f` zoom out; values above `1f` zoom in.
+
+`rememberCameraState` is backed by Compose's `remember`, so the state survives recomposition. It also exposes `animateTo` for programmatic, spring-animated camera transitions.
+
+### Compose the Scene
+
+Wrap your elements inside the `Scene` composable, passing the camera state, the render host factory, and your chosen gesture mode:
+
+```kotlin
+@Composable
+fun CoreOneScene(modifier: Modifier = Modifier) {
+    val cameraState = rememberCameraState(
+        yaw   = 20f.deg,
+        pitch = (-12f).deg,
+        zoom  = 1.25f,
+    )
+
+    Scene(
+        modifier          = modifier.fillMaxSize(),
+        renderHostFactory = DefaultSceneRenderHostFactory,
+        cameraState       = cameraState,
+        gestures          = Gestures.orbit(),
+    ) {
+        Element.Cube(
+            modifier = Modifier3D.Default
+                .rotateY(35f.deg)
+                .rotateZ(18f.deg)
+                .size(1.4f.meters)
+                .position(0f.meters, 0f.meters, (-4f).meters),
+        )
+        Element.Sphere(
+            modifier = Modifier3D.Default
+                .size(1f.meters)
+                .position(2f.meters, 0f.meters, (-6f).meters),
+        )
+        Element.Plane(
+            modifier = Modifier3D.Default
+                .size(8f.meters, 0.1f.meters, 8f.meters)
+                .position(0f.meters, (-1.2f).meters, (-5f).meters),
+        )
+    }
+}
+```
+
+The `Modifier3D` chain works similarly to Compose's `Modifier`:
+
+| Method | Description |
+|--------|-------------|
+| `.size(all: Distance)` | Uniform scale — sets width, height, and depth to the same value |
+| `.size(width, height, depth)` | Non-uniform scale along each axis |
+| `.position(x, y, z)` | World-space translation, typed in `Distance` units |
+| `.rotateX/Y/Z(angle)` | Rotation around a single axis, typed in `Angle` units |
+
+<Note>
+  `DefaultSceneRenderHostFactory` is the bridge between Spatial's declarative Compose layer and the real OpenGL ES 3.0 backend. It implements `SceneRenderHostFactory`, creates an `AndroidView`-hosted GL surface, and manages the render loop lifecycle. You should always pass it as the `renderHostFactory` argument unless you are supplying a custom test double.
+</Note>
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+  Replace `Gestures.orbit()` with `Gestures.orbitAndZoom()` to also enable pinch-to-zoom:
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  ```kotlin
+  gestures = Gestures.orbitAndZoom()
+  ```
+
+  Both accept an optional `sensitivity` parameter (`GestureSensitivity.Adaptive` by default) if you need to tune orbit or zoom response.
 </Tip>
+
+### Run the playground
+
+Connect an Android device or start an emulator with OpenGL ES 3.0 support, then run the `:app` configuration. The playground renders your scene at 60 FPS and prints the live camera `yaw`, `pitch`, and `zoom` values to the screen — useful for tuning the initial camera position.
+
+</Steps>
+
+---
+
+## Complete Example
+
+Here is the full, self-contained composable with all required imports:
+
+```kotlin CoreOneScene.kt
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.elitec.spatial_compose.Element
+import com.elitec.spatial_compose.Gestures
+import com.elitec.spatial_compose.Modifier3D
+import com.elitec.spatial_compose.Scene
+import com.elitec.spatial_compose_runtime_adapter.DefaultSceneRenderHostFactory
+import com.elitec.spatial_compose.rememberCameraState
+import com.elitec.spatial_units.deg
+import com.elitec.spatial_units.meters
+
+@Composable
+fun CoreOneScene(modifier: Modifier = Modifier) {
+    val cameraState = rememberCameraState(
+        yaw   = 20f.deg,
+        pitch = (-12f).deg,
+        zoom  = 1.25f,
+    )
+
+    Scene(
+        modifier          = modifier.fillMaxSize(),
+        renderHostFactory = DefaultSceneRenderHostFactory,
+        cameraState       = cameraState,
+        gestures          = Gestures.orbit(),
+    ) {
+        Element.Cube(
+            modifier = Modifier3D.Default
+                .rotateY(35f.deg)
+                .rotateZ(18f.deg)
+                .size(1.4f.meters)
+                .position(0f.meters, 0f.meters, (-4f).meters),
+        )
+        Element.Sphere(
+            modifier = Modifier3D.Default
+                .size(1f.meters)
+                .position(2f.meters, 0f.meters, (-6f).meters),
+        )
+        Element.Plane(
+            modifier = Modifier3D.Default
+                .size(8f.meters, 0.1f.meters, 8f.meters)
+                .position(0f.meters, (-1.2f).meters, (-5f).meters),
+        )
+    }
+}
+```

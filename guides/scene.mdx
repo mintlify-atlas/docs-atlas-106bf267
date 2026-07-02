@@ -1,0 +1,108 @@
+---
+title: "Composing a 3D Scene with the Scene Composable"
+sidebarTitle: "Scene"
+description: "Use the Scene composable to set up an OpenGL-backed 3D viewport in your Android Compose UI. Configure camera state, gestures, and render host in one place."
+---
+
+`Scene` is the root composable in Spatial. It creates an OpenGL-backed viewport inside your Compose UI, collects every 3D element declared in its `content` lambda into an internal scene graph, and submits a rendered frame to the render host on every recomposition. Everything visible in your 3D world — cubes, spheres, planes — lives inside a `Scene`.
+
+## Signature
+
+```kotlin
+@Composable
+fun Scene(
+    modifier: Modifier = Modifier,
+    renderHostFactory: SceneRenderHostFactory,
+    cameraState: CameraState = rememberCameraState(),
+    gestures: SceneGestures = Gestures.orbit(),
+    content: @Composable () -> Unit,
+)
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `modifier` | `Modifier` | Standard Compose `Modifier` applied to the underlying `AndroidView`. Use it to control layout (e.g. `fillMaxSize()`, `weight()`). |
+| `renderHostFactory` | `SceneRenderHostFactory` | Supplies the Android render host that drives the OpenGL surface. Use `DefaultSceneRenderHostFactory` in production. |
+| `cameraState` | `CameraState` | Observable state holder for the orbit camera. Defaults to `rememberCameraState()` (yaw = 0°, pitch = 0°, zoom = 1.0). |
+| `gestures` | `SceneGestures` | Gesture mode applied to the viewport. Defaults to `Gestures.orbit()`. Pass `Gestures.orbitAndZoom()` to also enable two-finger pinch zoom. |
+| `content` | `@Composable () -> Unit` | Composable lambda where you declare your 3D elements using `Element.Cube`, `Element.Sphere`, and `Element.Plane`. |
+
+## Basic Example
+
+The following snippet mirrors the setup used in `MainActivity` — a full-screen scene with an orbit camera and three primitives:
+
+```kotlin
+val cameraState = rememberCameraState(
+    yaw = 20f.deg,
+    pitch = (-12f).deg,
+    zoom = 1.25f,
+)
+
+Scene(
+    modifier = Modifier.fillMaxSize(),
+    renderHostFactory = DefaultSceneRenderHostFactory,
+    cameraState = cameraState,
+    gestures = Gestures.orbitAndZoom(),
+) {
+    Element.Cube(
+        modifier = Modifier3D.Default
+            .rotateY(35f.deg)
+            .rotateZ(18f.deg)
+            .size(1.4f.meters)
+            .position(0f.meters, 0f.meters, (-4f).meters),
+    )
+    Element.Sphere(
+        modifier = Modifier3D.Default
+            .size(1f.meters)
+            .position(2f.meters, 0f.meters, (-6f).meters),
+    )
+    Element.Plane(
+        modifier = Modifier3D.Default
+            .size(8f.meters, 0.1f.meters, 8f.meters)
+            .position(0f.meters, (-1.2f).meters, (-5f).meters),
+    )
+}
+```
+
+## How It Works Internally
+
+When `Scene` recomposes it executes the following pipeline:
+
+<Steps>
+  <Step title="Build the scene graph">
+    `rememberSceneGraph(content)` runs the `content` lambda in a special Compose sub-composition that intercepts each `Element.*` call and records it as a `SceneNode`.
+  </Step>
+  <Step title="Convert to renderable nodes">
+    Each `SceneNode` is mapped through `SceneNode.toRenderableNode()`, which resolves the `Modifier3D` chain into a column-major 4×4 model matrix and pairs it with a mesh identifier.
+  </Step>
+  <Step title="Snapshot the camera">
+    `cameraState.snapshot()` captures an immutable `CameraSnapshot` (yaw, pitch, zoom, version, source) at the current frame.
+  </Step>
+  <Step title="Submit the frame">
+    Both the renderable node list and the camera snapshot are forwarded to the render host via `renderSceneFrame(renderableNodes, cameraSnapshot)` inside the `AndroidView` `update` lambda, triggering an OpenGL draw call.
+  </Step>
+</Steps>
+
+## Lifecycle
+
+The `AndroidView` inside `Scene` uses `onRelease` to clean up when the composable leaves the composition:
+
+```kotlin
+onRelease = {
+    renderHostHolder.dispose()
+}
+```
+
+`dispose()` signals the render host to tear down its OpenGL context and release all GPU resources associated with the scene. You do not need to manage this manually.
+
+<Note>
+  Gesture input is wired through an internal `Modifier.sceneGestureInput` applied to the `AndroidView`. Raw `MotionEvent` handling is fully managed by the library — you only need to choose a `SceneGestures` mode.
+</Note>
+
+## Related
+
+- [Camera](/guides/camera) — control the orbit camera programmatically and animate it
+- [Elements](/guides/elements) — declare cubes, spheres, and planes inside `Scene`
+- [Gestures](/guides/gestures) — choose and tune the gesture mode

@@ -1,0 +1,156 @@
+---
+title: "Controlling the Orbit Camera with CameraState"
+sidebarTitle: "Camera"
+description: "Read and control the Spatial orbit camera using CameraState. Orbit, zoom, jump, and animate the camera programmatically from your composables."
+---
+
+`CameraState` is a `@Stable` Compose state holder that represents Spatial's orbit camera. It exposes the current camera orientation as observable Compose state properties (`yaw`, `pitch`, `zoom`) so your UI recomposes automatically whenever the camera moves — whether driven by touch gestures, programmatic calls, or running animations. You create one with `rememberCameraState()` and pass it to `Scene`.
+
+## Creating CameraState
+
+```kotlin
+val cameraState = rememberCameraState(
+    yaw   = 20f.deg,
+    pitch = (-12f).deg,
+    zoom  = 1.25f,
+)
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `yaw` | `Angle` | Horizontal rotation around the world Y-axis, in degrees. 0° faces along the −Z axis. |
+| `pitch` | `Angle` | Vertical tilt in degrees. Positive values tilt up; clamped to a safe orbit range to prevent camera flipping. |
+| `zoom` | `Float` | Visual magnification factor. `1.0` is the default field of view. Values greater than `1.0` appear closer; values less than `1.0` appear farther away. |
+
+## Reading Camera State
+
+All four properties are backed by Compose mutable state, so reading them inside a composable registers a recomposition subscription:
+
+```kotlin
+val snapshot = cameraState.snapshot()
+Text(
+    "yaw=${"%.2f".format(snapshot.yaw)}  " +
+    "pitch=${"%.2f".format(snapshot.pitch)}  " +
+    "zoom=${"%.2f".format(snapshot.zoom)}"
+)
+```
+
+The observable properties on `CameraState` itself are:
+
+| Property | Type | Description |
+|---|---|---|
+| `yaw` | `Angle` | Current horizontal orbit angle. |
+| `pitch` | `Angle` | Current vertical tilt angle. |
+| `zoom` | `Float` | Current zoom level. |
+| `version` | `Long` | Monotonically increasing counter incremented on every camera change. |
+| `source` | `CameraUpdateSource` | Identifies what last moved the camera — `Gesture`, `Remote`, or `Animation`. |
+
+## Programmatic Control
+
+These methods update the camera synchronously and trigger an immediate recomposition:
+
+### `orbitTo`
+
+Snaps the camera to an absolute yaw and/or pitch position:
+
+```kotlin
+cameraState.orbitTo(yaw = 180f.deg, pitch = (-15f).deg)
+```
+
+### `orbitBy`
+
+Applies a relative orbit delta — useful for button-driven nudges:
+
+```kotlin
+cameraState.orbitBy(deltaYawDegrees = 10f, deltaPitchDegrees = 0f)
+```
+
+### `zoomTo`
+
+Sets an absolute zoom level immediately:
+
+```kotlin
+cameraState.zoomTo(zoom = 2f)
+```
+
+### `zoomBy`
+
+Applies a multiplicative zoom delta. Values above `1f` zoom in; values below `1f` zoom out:
+
+```kotlin
+cameraState.zoomBy(scaleDelta = 1.1f) // zoom in 10%
+cameraState.zoomBy(scaleDelta = 0.9f) // zoom out 10%
+```
+
+### `jumpTo`
+
+Instantly sets yaw, pitch, and zoom all at once — no animation, no intermediate frames:
+
+```kotlin
+cameraState.jumpTo(yaw = 0f.deg, pitch = 0f.deg, zoom = 1f)
+```
+
+### `syncSnapshot`
+
+Syncs the camera from an external `CameraSnapshot` — useful for restoring saved camera state:
+
+```kotlin
+cameraState.syncSnapshot(savedSnapshot)
+```
+
+## Animated Transitions
+
+`animateTo` is a `suspend fun` that smoothly animates the camera to a new orientation. Call it from a `CoroutineScope`:
+
+```kotlin
+val scope = rememberCoroutineScope()
+
+Button(
+    onClick = {
+        scope.launch {
+            cameraState.animateTo(
+                yaw   = (cameraState.yaw.toDegrees() + 90f).deg,
+                pitch = (-18f).deg,
+                zoom  = 0.9f,
+            )
+        }
+    }
+) {
+    Text("Rotate camera")
+}
+```
+
+`animateTo` parameters:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `yaw` | `Angle` | Current yaw | Target horizontal orbit angle. |
+| `pitch` | `Angle` | Current pitch | Target vertical tilt. Automatically clamped to the safe orbit range. |
+| `zoom` | `Float` | Current zoom | Target zoom level. |
+| `durationMillis` | `Long?` | `null` | Optional explicit duration that overrides the adaptive planner. |
+| `motion` | `MotionSpec` | `MotionSpec.Adaptive` | Controls how duration and easing are computed. |
+
+<Tip>
+  Omitting any parameter keeps that axis at its current value. For example, `animateTo(zoom = 2f)` animates only the zoom while leaving yaw and pitch unchanged.
+</Tip>
+
+## Pitch Clamping
+
+Pitch is automatically clamped to a safe orbit range on every update — both from gestures and programmatic calls. This prevents the camera from flipping over the poles, which would invert the orbit controls and feel disorienting. The clamping constants are defined on `CameraSnapshot` and applied transparently inside `CameraState`.
+
+## CameraUpdateSource
+
+Every camera mutation records which subsystem initiated the change in the `source` property:
+
+| Value | Meaning |
+|---|---|
+| `CameraUpdateSource.Gesture` | The user dragged or pinched the viewport. |
+| `CameraUpdateSource.Remote` | A programmatic call (`orbitTo`, `zoomTo`, `jumpTo`, etc.) updated the camera. |
+| `CameraUpdateSource.Animation` | A running `animateTo` coroutine is driving the camera. |
+
+The runtime uses `source` to apply conflict-resolution policies — for example, a gesture event while an animation is running cancels the animation rather than fighting it.
+
+## Related
+
+- [Gestures](/guides/gestures) — configure touch gesture modes for the `Scene`
+- [Motion](/guides/motion) — control animation duration and easing with `MotionSpec`

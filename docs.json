@@ -1,72 +1,89 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Spatial",
+  "theme": "luma",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#4595db",
+    "light": "#5ebf9e",
+    "dark": "#7c7c7c"
   },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
+  "favicon": "https://media.brand.dev/85e2e2ed-529d-4cd8-b674-59bf480cf652.png",
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/danielitoCode/Spatial"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/danielitoCode/Spatial"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/declarative-scene",
+              "concepts/architecture",
+              "concepts/module-overview"
+            ]
+          },
+          {
+            "group": "Building Scenes",
+            "pages": [
+              "guides/scene",
+              "guides/elements",
+              "guides/modifier3d",
+              "guides/camera",
+              "guides/gestures",
+              "guides/motion"
+            ]
+          },
+          {
+            "group": "Units & Math",
+            "pages": [
+              "guides/units",
+              "guides/lighting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Compose API",
+            "pages": [
+              "api/scene",
+              "api/element",
+              "api/modifier3d",
+              "api/camera-state",
+              "api/gestures",
+              "api/motion-spec"
+            ]
+          },
+          {
+            "group": "Runtime & Modules",
+            "pages": [
+              "api/default-scene-render-host-factory",
+              "api/spatial-units",
+              "api/spatial-light"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

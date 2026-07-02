@@ -1,0 +1,152 @@
+---
+title: "Spatial Units: Meters, Centimeters, and Degrees"
+sidebarTitle: "Units"
+description: "Use Spatial's typed Distance and Angle values to write readable, unit-safe 3D transforms. Covers meters, centimeters, and degree extension properties."
+---
+
+Spatial's units system replaces raw `Float` values in transform APIs with two inline value classes — `Distance` and `Angle` — that carry explicit semantic meaning. Instead of passing an ambiguous `5f` to a position call and hoping it means meters, or supplying `0.785f` to a rotation and hoping it means radians, you write `5f.meters` and `45f.deg`. The compiler rejects any attempt to mix types, so a `Distance` can never silently end up where an `Angle` is expected and vice versa. This makes 3D scenes both easier to read and structurally safer to refactor.
+
+## Distance
+
+`Distance` is a Kotlin inline value class that wraps a single `Float` internally stored in **meters**. Because it is marked `private constructor`, you can only create `Distance` values through the provided extension properties or companion factory methods — never by constructing the class directly.
+
+```kotlin
+@JvmInline
+value class Distance private constructor(val meters: Float)
+```
+
+### Extension properties
+
+The `spatial-units` module exposes four extension properties on `Int` and `Float` so you can write literal distances inline:
+
+```kotlin
+val Int.meters: Distance    // e.g. 1.meters
+val Float.meters: Distance  // e.g. 1.5f.meters
+val Int.cm: Distance        // e.g. 50.cm
+val Float.cm: Distance      // e.g. 25.5f.cm
+```
+
+The `.cm` properties divide the value by `100f` before storing it, so `50.cm` and `0.5f.meters` are identical at runtime.
+
+### Arithmetic operators
+
+`Distance` supports addition and subtraction, returning a new `Distance`:
+
+```kotlin
+val total: Distance = 1.5f.meters + 50.cm  // 2.0 meters
+val gap: Distance   = 2.meters - 30.cm     // 1.7 meters
+```
+
+### Factory methods
+
+When you need to create a `Distance` from a computed `Float` rather than a literal, use the companion object factories:
+
+```kotlin
+Distance.meters(value: Float)      // stores value as-is
+Distance.centimeters(value: Float) // divides value / 100f
+```
+
+---
+
+## Angle
+
+`Angle` is an inline value class that wraps a `Float` stored internally in **radians**. Like `Distance`, its constructor is private — all creation goes through extension properties or companion factories.
+
+```kotlin
+@JvmInline
+value class Angle private constructor(val radians: Float)
+```
+
+### Extension properties
+
+```kotlin
+val Int.deg: Angle    // e.g. 45.deg
+val Float.deg: Angle  // e.g. 22.5f.deg
+```
+
+Both `.deg` properties convert the degree value to radians at construction time using `value × π / 180`. The stored `radians` property then gives you the internal representation if you need it downstream (for example, when passing to OpenGL matrix math).
+
+### Factory methods
+
+```kotlin
+Angle.degrees(value: Float)  // converts degrees → radians
+Angle.radians(value: Float)  // stores value as-is
+```
+
+Use `Angle.radians()` when you already have a radian value from a math library; use `Angle.degrees()` (or the `.deg` extension) for everything you type by hand.
+
+---
+
+## Usage in Modifier3D
+
+`Modifier3D` accepts `Distance` and `Angle` throughout its transform API — there are no raw-float overloads for rotation, and the typed `position` / `size` overloads require `Distance`. Here is a complete transform chain using the units system:
+
+```kotlin
+Modifier3D.Default
+    .size(2f.meters)                               // uniform 2 m cube
+    .rotateY(45f.deg)                              // 45 degrees around Y
+    .position(0f.meters, 0f.meters, (-5f).meters)  // 5 m in front of origin
+```
+
+The same scene snippet from the Spatial README shows units in a real `@Composable`:
+
+```kotlin
+Element.Cube(
+    modifier = Modifier3D.Default
+        .size(2f.meters)
+        .position(0f.meters, 0f.meters, (-5f).meters),
+)
+
+Element.Sphere(
+    modifier = Modifier3D.Default
+        .size(1f.meters)
+        .position(3f.meters, 0f.meters, (-8f).meters),
+)
+```
+
+For completeness, the full set of `Modifier3D` methods that consume units:
+
+```kotlin
+fun size(all: Distance): Modifier3D
+fun size(width: Distance, height: Distance, depth: Distance): Modifier3D
+fun position(x: Distance, y: Distance, z: Distance): Modifier3D
+fun rotateX(angle: Angle): Modifier3D
+fun rotateY(angle: Angle): Modifier3D
+fun rotateZ(angle: Angle): Modifier3D
+fun scale(x: Distance, y: Distance, z: Distance): Modifier3D
+```
+
+---
+
+## Why typed units?
+
+| Concern | Raw `Float` | Typed units |
+|---|---|---|
+| Readability | `position(0f, 0f, -5f)` — what scale? | `position(0f.meters, 0f.meters, (-5f).meters)` — unambiguous |
+| Mixing degrees / radians | Silently accepted, wrong at runtime | Compile error — `Angle` ≠ `Float` |
+| Mixing meters / centimeters | Easy to forget a `/100` | `.cm` converts automatically |
+| Refactoring | All raw floats look alike | IDE can track `Distance` vs `Angle` references |
+| Scene scale consistency | Each author decides their scale | One scale: meters, always |
+
+Typed units shift an entire class of spatial bugs — wrong scale, wrong angular unit — from runtime surprises to compile-time errors. They also make code review faster: a reviewer can see at a glance that `1.5f.meters` is a distance and `30f.deg` is a rotation without reading surrounding context.
+
+---
+
+## Negative values
+
+Kotlin's extension properties bind tightly to the receiver literal. Writing `-5f.meters` is parsed as `-(5f.meters)`, which would attempt to negate a `Distance` using the unary minus — an operator that `Distance` does not currently define. To express a negative distance literal, wrap the negative float in parentheses first:
+
+```kotlin
+(-5f).meters   // ✅ correct — creates Distance(-0.05f in meters, i.e. –5 m)
+-5f.meters     // ❌ does not compile — no unary minus on Distance
+```
+
+The same rule applies to `Angle`:
+
+```kotlin
+(-12f).deg     // ✅ correct
+```
+
+<Tip>
+Always wrap negative float literals in parentheses before calling `.meters` or `.deg`. The idiom `(-5f).meters` is the canonical Spatial pattern — you'll see it throughout the README examples and the playground scenes.
+</Tip>

@@ -1,0 +1,97 @@
+---
+title: "Spatial: Declarative 3D Rendering for Android"
+sidebarTitle: "Introduction"
+description: "Spatial is a declarative 3D rendering library for Android that hides OpenGL complexity and provides a Compose-inspired API for building 3D scenes."
+---
+
+Spatial is a modern 3D rendering library for Android that brings the declarative, state-driven mental model of Jetpack Compose to the world of OpenGL. Instead of manually managing render loops, buffer uploads, shader uniforms, and camera matrices, you describe your scene as a composable tree of elements — Spatial figures out what to draw and when. The library completely hides the complexity of OpenGL ES 3.0 pipelines from application code, so you stay focused on what the scene should look like rather than how the GPU executes it.
+
+<Note>
+  Core #1 is currently **In Development**. Contracts, public API surface, and tests are not yet closed or stable. Do not treat any Core #1 release as production-ready until this status changes.
+</Note>
+
+## What Spatial Is — and Isn't
+
+Core #1 defines a deliberate, opinionated scope. Understanding the boundaries up front prevents surprises.
+
+### Included in Core #1
+
+- **Essential 3D primitives** — `Element.Cube`, `Element.Sphere`, `Element.Plane`
+- **Orbit camera** — smooth yaw/pitch rotation around a focal point
+- **Smooth zoom** — pinch-to-zoom and programmatic zoom with damping
+- **Inertia and damping** — cinematic gesture deceleration baked in
+- **Declarative scene API** — `Scene`, `Element`, `Modifier3D`
+- **Gesture system** — `Gestures.orbit()`, `Gestures.orbitAndZoom()`, `Gestures.none()`
+- **Flat-color material rendering** — material color is passed directly to the shader; no directional, ambient, or physically-based light evaluation
+- **Units system** — typed `meters`, `cm`, and `deg` extensions to eliminate raw-float ambiguity
+- **GPU abstraction layer** — OpenGL detail is fully encapsulated behind `SceneRenderHostFactory`
+- **Compose integration** — first-class `@Composable` API, `remember`-based state, and `AndroidView` hosting
+
+### Intentionally Excluded from Core #1
+
+- PBR (physically based rendering)
+- Shadows
+- Real lighting and shaded light evaluation
+- Vulkan backend
+- Skeletal animation and advanced keyframe timelines
+- Physics and ECS
+- External model loading (glTF, OBJ)
+- Post-processing
+- Editor tooling
+
+---
+
+## Design Philosophy
+
+Spatial is built around five principles that apply consistently across every API decision:
+
+| Principle | What It Means |
+|-----------|---------------|
+| **Declarative** | Scenes describe state. You define what exists and where; Spatial determines how to render it. |
+| **Reactive** | State changes automatically propagate to the renderer. No manual invalidation calls. |
+| **Compose-first** | The public API mirrors Compose mental models: composable functions, modifier chains, `remember` state holders. |
+| **Cinematic** | Motion quality takes priority over feature quantity. Orbit, zoom, and transitions are tuned to feel premium even with simple primitives. |
+| **Opinionated** | Good defaults ship out of the box. Minimal boilerplate is a first-class design goal. |
+
+---
+
+## Public API Package
+
+All stable Core #1 symbols are exported from a single root package. Application code should prefer these root imports rather than reaching into internal subpackages:
+
+```kotlin
+import com.elitec.spatial_compose.CameraState
+import com.elitec.spatial_compose.Element
+import com.elitec.spatial_compose.GestureSensitivity
+import com.elitec.spatial_compose.Gestures
+import com.elitec.spatial_compose.Modifier3D
+import com.elitec.spatial_compose.MotionSpec
+import com.elitec.spatial_compose.Scene
+import com.elitec.spatial_compose.SceneGestures
+import com.elitec.spatial_compose.rememberCameraState
+```
+
+The Android OpenGL render backend is supplied by a separate adapter module:
+
+```kotlin
+import com.elitec.spatial_compose_runtime_adapter.DefaultSceneRenderHostFactory
+```
+
+---
+
+## Explore the Docs
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Render a Cube, Sphere, and Plane with an orbit camera in under five minutes.
+  </Card>
+  <Card title="Installation" icon="wrench" href="/installation">
+    Add Spatial's Gradle submodules to your project and configure Compose.
+  </Card>
+  <Card title="Declarative Scene" icon="layer-group" href="/concepts/declarative-scene">
+    Understand how the composable scene tree maps to GPU draw calls.
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Explore Spatial's module graph and dependency direction rules.
+  </Card>
+</CardGroup>

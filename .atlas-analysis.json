@@ -1,0 +1,118 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Spatial",
+  "projectDescription": "A declarative 3D rendering library for Android inspired by Jetpack Compose that hides OpenGL complexity and provides a state-driven API for building 3D scenes using components like Scene, Element, and Modifier3D.",
+  "theme": "luma",
+  "primaryColor": "#4595db",
+  "lightColor": "#5ebf9e",
+  "darkColor": "#7c7c7c",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/declarative-scene",
+              "concepts/architecture",
+              "concepts/module-overview"
+            ]
+          },
+          {
+            "group": "Building Scenes",
+            "pages": [
+              "guides/scene",
+              "guides/elements",
+              "guides/modifier3d",
+              "guides/camera",
+              "guides/gestures",
+              "guides/motion"
+            ]
+          },
+          {
+            "group": "Units & Math",
+            "pages": [
+              "guides/units",
+              "guides/lighting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Compose API",
+            "pages": [
+              "api/scene",
+              "api/element",
+              "api/modifier3d",
+              "api/camera-state",
+              "api/gestures",
+              "api/motion-spec"
+            ]
+          },
+          {
+            "group": "Runtime & Modules",
+            "pages": [
+              "api/default-scene-render-host-factory",
+              "api/spatial-units",
+              "api/spatial-light"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Declarative 3D scene API inspired by Jetpack Compose",
+    "Zero OpenGL boilerplate — full GPU abstraction",
+    "Orbit camera with smooth inertia and damping",
+    "Pinch-to-zoom and orbit gesture recognition",
+    "Animated camera transitions with adaptive duration",
+    "Primitive elements: Cube, Sphere, Plane",
+    "Modifier3D for position, rotation, scale, and size",
+    "Typed spatial units system (meters, cm, degrees)",
+    "Flat-color material rendering via OpenGL ES 3.0",
+    "Modular multi-library architecture with clean dependency direction"
+  ],
+  "publicApiSurface": [
+    "Scene(modifier, renderHostFactory, cameraState, gestures, content)",
+    "Element.Cube(modifier: Modifier3D)",
+    "Element.Sphere(modifier: Modifier3D)",
+    "Element.Plane(modifier: Modifier3D)",
+    "Modifier3D.position(x, y, z)",
+    "Modifier3D.rotateX/rotateY/rotateZ(angle)",
+    "Modifier3D.scale(x, y, z)",
+    "Modifier3D.size(all) / size(width, height, depth)",
+    "rememberCameraState(yaw, pitch, zoom)",
+    "CameraState.orbitTo(yaw, pitch)",
+    "CameraState.orbitBy(deltaYawDegrees, deltaPitchDegrees)",
+    "CameraState.zoomTo(zoom)",
+    "CameraState.zoomBy(scaleDelta)",
+    "CameraState.jumpTo(yaw, pitch, zoom)",
+    "CameraState.animateTo(yaw, pitch, zoom, durationMillis, motion)",
+    "CameraState.snapshot()",
+    "Gestures.none()",
+    "Gestures.orbit(sensitivity)",
+    "Gestures.orbitAndZoom(sensitivity)",
+    "GestureSensitivity.Adaptive",
+    "GestureSensitivity.Fixed(degreesPerPixel)",
+    "MotionSpec.Adaptive",
+    "MotionSpec.Instant",
+    "MotionSpec.custom(minDurationMillis, maxDurationMillis, ...)",
+    "DefaultSceneRenderHostFactory",
+    "Distance (Float.meters, Float.cm, Int.meters, Int.cm)",
+    "Angle (Float.deg, Int.deg)",
+    "Light.directional(dirX, dirY, dirZ, intensity, r, g, b)"
+  ]
+}

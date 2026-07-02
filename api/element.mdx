@@ -1,0 +1,93 @@
+---
+title: "Element — 3D Primitive Composables"
+sidebarTitle: "Element"
+description: "API reference for Element.Cube, Element.Sphere, and Element.Plane — the three 3D primitive composables available in Spatial Core #1."
+---
+
+`Element` is an `@Immutable` object that provides three 3D primitive composables for use inside a `Scene` content block. Each function registers a mesh in the scene graph for the current recomposition; no side-effects occur outside of an active `Scene`. The public surface is exported from the root `com.elitec.spatial_compose` package and delegates to the internal `core.Element` implementation, which maps each primitive to a `PrimitiveShape` enum value before submitting it to the renderer.
+
+## Import
+
+```kotlin
+import com.elitec.spatial_compose.Element
+```
+
+---
+
+## Element.Cube
+
+```kotlin
+@Composable
+fun Element.Cube(modifier: Modifier3D = Modifier3D.Default)
+```
+
+Renders a unit cube mesh in the scene. All six faces are drawn as a solid, unlit mesh by the default renderer. The cube is centred at the origin defined by `modifier.position` before the transform chain is applied.
+
+---
+
+## Element.Sphere
+
+```kotlin
+@Composable
+fun Element.Sphere(modifier: Modifier3D = Modifier3D.Default)
+```
+
+Renders a sphere mesh in the scene. The sphere is centred at the origin of its local transform space. Use `Modifier3D.size` to control the diameter uniformly, or supply per-axis values to produce an ellipsoid.
+
+---
+
+## Element.Plane
+
+```kotlin
+@Composable
+fun Element.Plane(modifier: Modifier3D = Modifier3D.Default)
+```
+
+Renders a flat, quad-based plane mesh. The plane lies in the XZ plane by default (normal pointing up along Y). It is useful for floors, ceilings, shadow-catcher surfaces, and backgrounds. Use `Modifier3D.size` to control width and depth, and `rotateX` / `rotateZ` to tilt it.
+
+---
+
+## Parameters
+
+All three primitives share the same single parameter.
+
+<ParamField path="modifier" type="Modifier3D" default="Modifier3D.Default">
+  3D transform chain controlling position, rotation, and size in world space. Defaults to `Modifier3D.Default`, which places the element at the origin with no rotation and a uniform scale of 1 metre on each axis. Chain `.size()`, `.position()`, `.rotateX/Y/Z()`, and `.scale()` calls to position and orient the element.
+</ParamField>
+
+---
+
+## Full Example
+
+```kotlin
+Scene(
+    renderHostFactory = DefaultSceneRenderHostFactory,
+    cameraState = rememberCameraState(),
+    gestures = Gestures.orbit(),
+) {
+    Element.Cube(
+        modifier = Modifier3D.Default
+            .size(1.4f.meters)
+            .rotateY(35f.deg)
+            .position(0f.meters, 0f.meters, (-4f).meters),
+    )
+    Element.Sphere(
+        modifier = Modifier3D.Default
+            .size(1f.meters)
+            .position(2f.meters, 0f.meters, (-6f).meters),
+    )
+    Element.Plane(
+        modifier = Modifier3D.Default
+            .size(8f.meters, 0.1f.meters, 8f.meters)
+            .position(0f.meters, (-1.2f).meters, (-5f).meters),
+    )
+}
+```
+
+<Tip>
+  Call as many `Element.*` composables inside a single `Scene` content block as needed. The runtime batches them into a single scene-graph submission before issuing the render call.
+</Tip>
+
+<Note>
+  `Element.Cube`, `Element.Sphere`, and `Element.Plane` are composable functions — they must be called inside a `Scene` content block (or another composable that itself runs inside a `Scene`). Calling them outside a `Scene` will throw a runtime error because no `SceneContentScope` is present.
+</Note>

@@ -1,0 +1,179 @@
+---
+title: "spatial-units: Distance and Angle Value Types"
+sidebarTitle: "spatial-units"
+description: "Full API reference for the spatial-units module — the Distance and Angle inline value classes and their extension properties for meters, cm, and degrees."
+---
+
+The `spatial-units` module provides two inline value classes — `Distance` and `Angle` — that carry type-level unit information into `Modifier3D`, `rememberCameraState`, and all camera control APIs. Using these types instead of raw `Float` values prevents unit-mismatch bugs at compile time and makes scene code read as natural human measurements: `2f.meters`, `50.cm`, `45f.deg`.
+
+## Import
+
+```kotlin
+import com.elitec.spatial_units.Distance
+import com.elitec.spatial_units.Angle
+import com.elitec.spatial_units.meters
+import com.elitec.spatial_units.cm
+import com.elitec.spatial_units.deg
+```
+
+**Module:** `spatial-units`
+
+---
+
+## Distance
+
+`Distance` is a JVM inline value class that wraps a single `Float` stored in **meters**. The private constructor means you cannot construct a `Distance` directly — use the companion factory methods or the extension properties on `Int` and `Float`.
+
+### Declaration
+
+```kotlin
+@JvmInline
+value class Distance private constructor(val meters: Float)
+```
+
+### Companion factory methods
+
+<ParamField path="Distance.meters(value: Float)" type="Distance">
+  Creates a `Distance` from a value already expressed in meters.
+
+  ```kotlin
+  val d = Distance.meters(2.5f) // 2.5 m
+  ```
+</ParamField>
+
+<ParamField path="Distance.centimeters(value: Float)" type="Distance">
+  Creates a `Distance` from a value expressed in centimeters. The value is divided by `100f` before storage so the underlying representation is always in meters.
+
+  ```kotlin
+  val d = Distance.centimeters(50f) // 0.5 m
+  ```
+</ParamField>
+
+### Extension properties
+
+<ParamField path="val Int.meters" type="Distance">
+  Converts an `Int` literal to a `Distance` in meters via `Distance.meters(toFloat())`.
+</ParamField>
+
+<ParamField path="val Float.meters" type="Distance">
+  Converts a `Float` literal to a `Distance` in meters via `Distance.meters(this)`.
+</ParamField>
+
+<ParamField path="val Int.cm" type="Distance">
+  Converts an `Int` literal representing centimeters to a `Distance` via `Distance.centimeters(toFloat())`.
+</ParamField>
+
+<ParamField path="val Float.cm" type="Distance">
+  Converts a `Float` literal representing centimeters to a `Distance` via `Distance.centimeters(this)`.
+</ParamField>
+
+### Operators
+
+Both arithmetic operators return a new `Distance`:
+
+| Operator | Signature | Description |
+|----------|-----------|-------------|
+| `+` | `operator fun plus(other: Distance): Distance` | Adds two distances. |
+| `-` | `operator fun minus(other: Distance): Distance` | Subtracts two distances. |
+
+### Reading the raw value
+
+`val meters: Float` is the single backing property on the inline class. Because `Distance` is an inline class, accessing `.meters` at runtime has zero overhead — no boxing occurs.
+
+```kotlin
+val d = 3f.meters
+println(d.meters) // 3.0
+```
+
+---
+
+## Angle
+
+`Angle` is a JVM inline value class that wraps a single `Float` stored in **radians**. All degree-based input is converted to radians at construction time via the `PI / 180.0` factor.
+
+### Declaration
+
+```kotlin
+@JvmInline
+value class Angle private constructor(val radians: Float)
+```
+
+### Companion factory methods
+
+<ParamField path="Angle.radians(value: Float)" type="Angle">
+  Creates an `Angle` from a value already expressed in radians.
+
+  ```kotlin
+  val a = Angle.radians(1.5708f) // ~90°
+  ```
+</ParamField>
+
+<ParamField path="Angle.degrees(value: Float)" type="Angle">
+  Creates an `Angle` from a value in degrees. Internally computes `(value * PI / 180.0).toFloat()` and stores the result as radians.
+
+  ```kotlin
+  val a = Angle.degrees(90f) // π/2 radians
+  ```
+</ParamField>
+
+### Extension properties
+
+<ParamField path="val Int.deg" type="Angle">
+  Converts an `Int` literal in degrees to an `Angle` via `Angle.degrees(toFloat())`.
+</ParamField>
+
+<ParamField path="val Float.deg" type="Angle">
+  Converts a `Float` literal in degrees to an `Angle` via `Angle.degrees(this)`.
+</ParamField>
+
+### Reading the raw value
+
+`val radians: Float` is the single backing property. Degrees-to-radians conversion happens once at construction; no conversion overhead occurs on subsequent reads.
+
+```kotlin
+val a = 180f.deg
+println(a.radians) // 3.1415927 (π)
+```
+
+---
+
+## Quick reference
+
+| Expression | Input type | Input unit | Return type | Stored as |
+|------------|-----------|------------|-------------|-----------|
+| `n.meters` | `Int` | meters | `Distance` | meters |
+| `f.meters` | `Float` | meters | `Distance` | meters |
+| `n.cm` | `Int` | centimeters | `Distance` | meters |
+| `f.cm` | `Float` | centimeters | `Distance` | meters |
+| `n.deg` | `Int` | degrees | `Angle` | radians |
+| `f.deg` | `Float` | degrees | `Angle` | radians |
+| `Distance.meters(f)` | `Float` | meters | `Distance` | meters |
+| `Distance.centimeters(f)` | `Float` | centimeters | `Distance` | meters |
+| `Angle.radians(f)` | `Float` | radians | `Angle` | radians |
+| `Angle.degrees(f)` | `Float` | degrees | `Angle` | radians |
+
+---
+
+## Example
+
+```kotlin
+import com.elitec.spatial_units.deg
+import com.elitec.spatial_units.meters
+import com.elitec.spatial_units.cm
+
+val width: Distance = 2f.meters          // 2.0 meters
+val thickness: Distance = 50.cm          // 0.5 meters
+val rotation: Angle = 45f.deg            // π/4 radians internally
+val negativeZ: Distance = (-5f).meters   // note parentheses for negative
+
+// Arithmetic
+val total: Distance = width + thickness  // 2.5 meters
+
+// Reading raw values for renderer consumption
+println(width.meters)    // 2.0
+println(rotation.radians) // 0.7853982
+```
+
+<Tip>
+  Use parentheses for negative literals: `(-5f).meters`, not `-5f.meters`. Without parentheses, Kotlin parses the expression as `-(5f.meters)`, which compiles but may surprise readers unfamiliar with operator precedence.
+</Tip>

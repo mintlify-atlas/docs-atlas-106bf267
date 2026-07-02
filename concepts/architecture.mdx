@@ -1,0 +1,191 @@
+---
+title: "Spatial Architecture: Modules, Layers, and Data Flow"
+sidebarTitle: "Architecture"
+description: "How Spatial organizes its modules into clean layers — Compose UI, core contracts, scene graph, and OpenGL renderer — with strict one-directional dependencies."
+---
+
+Spatial is built on a **hybrid architecture** that combines Clean Architecture, Feature-First organization, and Rendering-Oriented Pragmatism. The goal is not to satisfy a pattern checklist — it is to produce a codebase with strong ownership boundaries, low coupling, and the rendering performance required to run at 60 FPS on Android. Spatial deliberately avoids enterprise abstractions such as excessive repositories, DTO over-engineering, artificial use cases, and deep inheritance hierarchies wherever they would add complexity without adding value.
+
+## Dependency direction
+
+Every module in Spatial belongs to a well-defined layer. Layers are strictly ordered: higher-level modules may depend on lower-level ones, but the reverse dependency is never allowed.
+
+```
+Compose
+   ↓
+Core
+   ↓
+Scene
+   ↓
+Renderer
+```
+
+The rules that enforce this order are non-negotiable:
+
+- **High-level modules never depend on UI.** `spatial-camera`, `spatial-scene`, `spatial-math`, and `spatial-renderer` have no knowledge of Jetpack Compose, `Context`, or any Android UI class.
+- **Renderer never knows Compose.** `SpatialGlRenderer` operates on `RenderableNode` and `CameraSnapshot` — pure Kotlin value types defined in `spatial-core`. It has no import from `androidx.compose.*`.
+- **Scene never knows Android.** `spatial-scene` is a pure Kotlin library. It can run in a JVM unit test without an Android device or emulator.
+- **Math remains framework-independent.** `spatial-math` has zero external dependencies. `Vec3`, `Matrix4`, and `Quaternion` are plain Kotlin data classes that can be used in any Kotlin target.
+
+This strict ordering means you can test every layer below Compose without starting an Activity, and you can swap the Compose layer for a different UI framework in the future without touching the renderer.
+
+## Module layers
+
+<CardGroup cols={2}>
+  <Card title="Compose Layer" icon="layer-group">
+    **`spatial-compose`** — The declarative public API. Owns `Scene`, `Element`, `Modifier3D`, `CameraState`, and `rememberCameraState`. This is the only module most app code needs to import directly.
+
+    **`spatial-compose-runtime-adapter`** — Wires the Compose layer to a real Android render host. Provides `DefaultSceneRenderHostFactory`, which creates `SpatialRuntimeSceneRenderHost` backed by `SpatialRuntime` and `SpatialGlRenderTarget`.
+  </Card>
+  <Card title="Contract Layer" icon="file-contract">
+    **`spatial-core`** — Framework-free contracts and shared types that cross module boundaries. Defines `RenderableNode`, `MaterialData`, `LightData`, `CameraSnapshot`, `SpatialRenderLoopContract`, and `FrameSnapshot`. No module may invent its own copy of these types.
+  </Card>
+  <Card title="Feature Modules" icon="puzzle-piece">
+    **`spatial-camera`** — Orbit camera, zoom, inertia, damping, and cinematic transitions.
+
+    **`spatial-gesture`** — Multi-touch, pinch-zoom, orbit gesture recognition, and velocity tracking.
+
+    **`spatial-motion`** — Animation timelines, spring systems, easing curves, and adaptive duration planning.
+
+    **`spatial-material`** — Flat-color material abstraction for Core #1; foundation for future texture and PBR materials.
+  </Card>
+  <Card title="Foundation Modules" icon="cubes">
+    **`spatial-renderer`** — OpenGL ES 3.0 render pipeline, shader compilation, buffer management, and Choreographer frame scheduling.
+
+    **`spatial-scene`** — Scene graph: node hierarchy, transform propagation, visibility, dirty flags, and parent-child relationships.
+
+    **`spatial-geometry`** — Procedural mesh generation for cubes, spheres, planes, and cylinders.
+
+    **`spatial-math`** — `Vec2`, `Vec3`, `Vec4`, `Quaternion`, `Matrix4`, and projection math. Zero dependencies.
+
+    **`spatial-units`** — Typed spatial units: `meters`, `cm`, `deg`, and unit conversions.
+
+    **`spatial-light`** — `LightData` contracts and directional light metadata (Core #1 does not evaluate lighting in shaders).
+  </Card>
+</CardGroup>
+
+## Data flow for a frame
+
+The journey from a user dragging a finger to a new frame on screen involves six distinct steps across four layers.
+
+<Steps>
+  <Step title="CameraState changes">
+    The gesture system calls `cameraState.orbitBy(...)` or `cameraState.zoomBy(...)`. These methods forward the delta to the internal `SpatialCamera` runtime and call `syncFromRuntime()`, which writes new values into the `mutableStateOf`-backed `yaw`, `pitch`, and `zoom` properties on the `CameraState` object.
+
+    Because these are Compose state objects, Compose schedules a recomposition of every composable that read them.
+  </Step>
+  <Step title="Scene composable re-runs">
+    The `Scene` composable re-executes. `rememberSceneGraph(content)` resets the `SceneContentScope`, re-invokes the `content` lambda, and re-collects all `SceneNode` entries — each a `(PrimitiveShape, Modifier3D)` pair — that were registered via `SceneElement(...)` calls inside `Element.Cube`, `Element.Sphere`, and `Element.Plane`.
+  </Step>
+  <Step title="Nodes converted to RenderableNode">
+    Each `SceneNode` is converted to a `RenderableNode` via `toRenderableNode()`. The conversion extracts the `Modifier3D` transforms (position, size, rotation) and multiplies them into a 16-element `FloatArray` model matrix. Material color is embedded as a `MaterialData(r, g, b, a)`. The `meshId` string identifies which registered primitive mesh the renderer should use.
+
+    ```kotlin
+    data class RenderableNode(
+        val meshId: String,
+        val modelMatrix: FloatArray = FloatArray(16) { if (it % 5 == 0) 1f else 0f },
+        val material: MaterialData = MaterialData(),
+    )
+    ```
+  </Step>
+  <Step title="CameraSnapshot taken">
+    An immutable `CameraSnapshot` is captured from `CameraState`:
+
+    ```kotlin
+    val cameraSnapshot = cameraState.snapshot()
+    ```
+
+    The snapshot freezes `yaw`, `pitch`, `zoom`, `version`, and `source` as plain `Float` / `Long` values. The renderer receives a value type, not a live observable — this prevents data races on the GL thread.
+  </Step>
+  <Step title="Submitted to SceneRenderHost">
+    The node list and camera snapshot are handed to the render host:
+
+    ```kotlin
+    renderHostHolder.host?.renderSceneFrame(renderableNodes, cameraSnapshot)
+    ```
+
+    `DefaultSceneRenderHostFactory` creates a `SpatialRuntimeSceneRenderHost`. Its `requestFrame()` method calls `SpatialRuntime.requestFrame(nodes, cameraSnapshot)`, which schedules a callback via `ChoreographerFrameScheduler` aligned to the display's vsync signal.
+  </Step>
+  <Step title="SpatialGlRenderer issues OpenGL draw calls">
+    On the GL thread, `SpatialGlRenderer.onDrawFrame()` iterates over the `RenderableNode` list. For each node it:
+
+    1. Resolves the `meshId` to a registered `GlMeshBuffers` pair (vertex buffer + index buffer).
+    2. Binds the vertex buffer and configures vertex attribute pointers.
+    3. Uploads the model matrix to the `uModelMatrix` uniform.
+    4. Uploads the material color to the `uColor` uniform.
+    5. Issues `glDrawElements` (indexed) or `glDrawArrays` (non-indexed).
+
+    The view and projection matrices are rebuilt each frame from `CameraSnapshot.yaw`, `.pitch`, and `.zoom` using `Matrix.setLookAtM` and `Matrix.perspectiveM`. Orbital distance is computed as `baseDistance / zoom` so that higher zoom values bring objects visually closer.
+  </Step>
+</Steps>
+
+## Scene3D facade
+
+`Scene3D.kt` is the root-package public API facade. It lives in `com.elitec.spatial_compose` and re-exports every stable Core #1 symbol so that application code uses a single, flat import path:
+
+```kotlin
+import com.elitec.spatial_compose.CameraState
+import com.elitec.spatial_compose.Element
+import com.elitec.spatial_compose.GestureSensitivity
+import com.elitec.spatial_compose.Gestures
+import com.elitec.spatial_compose.Modifier3D
+import com.elitec.spatial_compose.MotionSpec
+import com.elitec.spatial_compose.Scene
+import com.elitec.spatial_compose.SceneGestures
+import com.elitec.spatial_compose.rememberCameraState
+```
+
+The underlying implementations live in subpackages (`components/`, `scene/`, `state/`, `modifier/`, `core/`), but those are internal details. The facade uses `typealias` for types and thin delegation for composable functions so that the public surface remains stable even if internal packages are reorganized:
+
+```kotlin
+/** Root-package export for camera state. */
+public typealias CameraState = CoreCameraState
+
+/** Root-package export for 3D element modifiers. */
+public typealias Modifier3D = CoreModifier3D
+
+@Composable
+public fun Scene(
+    modifier: Modifier = Modifier,
+    renderHostFactory: SceneRenderHostFactory,
+    cameraState: CameraState = rememberCameraState(),
+    gestures: SceneGestures = Gestures.orbit(),
+    content: @Composable () -> Unit,
+) {
+    ComponentScene(
+        modifier = modifier,
+        renderHostFactory = renderHostFactory,
+        cameraState = cameraState,
+        gestures = gestures,
+        content = content,
+    )
+}
+```
+
+The runtime adapter exposes its own stable entry point from a separate package:
+
+```kotlin
+import com.elitec.spatial_compose_runtime_adapter.DefaultSceneRenderHostFactory
+```
+
+## Design principles
+
+Spatial's architecture is guided by five core principles, each with a direct impact on how modules are structured and where logic lives.
+
+<CardGroup cols={2}>
+  <Card title="Declarative" icon="pen-ruler">
+    Scenes describe state, not sequences of commands. `Element.Cube` declares intent; `SpatialGlRenderer` decides how to satisfy it on the GPU. This separation allows the rendering strategy to evolve — buffering, batching, instancing — without touching the API surface.
+  </Card>
+  <Card title="Reactive" icon="bolt">
+    State changes propagate automatically. `CameraState` is `@Stable` with `mutableStateOf`-backed properties. Any composable that reads a camera property recomposes when that property changes — no listeners, no `invalidate()` calls, no manual dirty tracking.
+  </Card>
+  <Card title="Compose-first" icon="mobile">
+    The mental model mirrors Jetpack Compose. `Scene` is a composable that takes a `content` lambda. `Element.Cube` is a composable. `rememberCameraState` follows the `remember`-family convention. Developers who know Compose already know how Spatial thinks.
+  </Card>
+  <Card title="Cinematic" icon="film">
+    Motion quality is prioritized over feature quantity. The camera system includes inertia, damping, adaptive duration planning, and smooth zoom. The renderer targets 60 FPS with Choreographer-aligned frame scheduling. A premium feel with simple geometry is a deliberate design goal.
+  </Card>
+  <Card title="Opinionated" icon="sliders">
+    Spatial provides good defaults and minimal boilerplate. `Gestures.orbitAndZoom()` is one call. `DefaultSceneRenderHostFactory` wires the entire render pipeline without configuration. Units are typed (`meters`, `deg`) so there is only one correct way to express a measurement.
+  </Card>
+</CardGroup>

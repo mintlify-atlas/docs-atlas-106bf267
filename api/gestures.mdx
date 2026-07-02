@@ -1,0 +1,135 @@
+---
+title: "Gestures — Touch Input Configuration API"
+sidebarTitle: "Gestures"
+description: "API reference for Gestures, SceneGestures, and GestureSensitivity. Configure one-finger orbit and two-finger pinch-zoom for a Spatial scene."
+---
+
+The `Gestures` object provides factory functions that return `SceneGestures` values — the configuration struct passed to `Scene(gestures = ...)` to control which touch gestures are recognised and how sensitive they are. Three modes are available: no input, one-finger orbit, and one-finger orbit combined with two-finger pinch zoom. Sensitivity can be left on the default `Adaptive` policy, which scales the angular delta with camera zoom and viewport size, or locked to a `Fixed` rate for predictable, manual-feeling control.
+
+## Import
+
+```kotlin
+import com.elitec.spatial_compose.Gestures
+import com.elitec.spatial_compose.GestureSensitivity
+import com.elitec.spatial_compose.SceneGestures
+```
+
+---
+
+## Gestures Factory Functions
+
+### Gestures.none
+
+```kotlin
+fun Gestures.none(): SceneGestures
+```
+
+Disables all touch input on the scene. The returned `SceneGestures` has mode `SceneGestures.Mode.None`, with both `orbitEnabled` and `zoomEnabled` set to `false`. Use this when you want to drive the camera exclusively from code (e.g. `CameraState.animateTo()`).
+
+---
+
+### Gestures.orbit
+
+```kotlin
+fun Gestures.orbit(
+    sensitivity: GestureSensitivity = GestureSensitivity.Adaptive,
+): SceneGestures
+```
+
+Enables one-finger drag-to-orbit. A single pointer dragging across the scene rotates the camera yaw and pitch. The returned `SceneGestures` has mode `SceneGestures.Mode.Orbit`.
+
+<ParamField path="sensitivity" type="GestureSensitivity" default="GestureSensitivity.Adaptive">
+  Controls how many degrees the orbit angle changes per pixel of input. Defaults to `GestureSensitivity.Adaptive`, which scales sensitivity with the current zoom level and viewport dimensions. Pass `GestureSensitivity.Fixed(degreesPerPixel)` for a constant angular rate.
+</ParamField>
+
+---
+
+### Gestures.orbitAndZoom
+
+```kotlin
+fun Gestures.orbitAndZoom(
+    sensitivity: GestureSensitivity = GestureSensitivity.Adaptive,
+): SceneGestures
+```
+
+Enables one-finger drag-to-orbit **and** two-finger pinch-to-zoom simultaneously. The returned `SceneGestures` has mode `SceneGestures.Mode.OrbitAndZoom`, with both `orbitEnabled` and `zoomEnabled` set to `true`.
+
+<ParamField path="sensitivity" type="GestureSensitivity" default="GestureSensitivity.Adaptive">
+  Orbit sensitivity policy, applied to the one-finger drag component. The pinch-zoom scale delta is computed geometrically from the finger spread and is not affected by this parameter.
+</ParamField>
+
+---
+
+## GestureSensitivity
+
+`GestureSensitivity` is a `@Immutable` sealed interface with two variants. Choose one when constructing a `SceneGestures` via the `Gestures` factory.
+
+### GestureSensitivity.Adaptive
+
+```kotlin
+data object GestureSensitivity.Adaptive : GestureSensitivity
+```
+
+Scales drag sensitivity dynamically based on the current camera zoom, the approximate scene diameter, and the available input viewport size. This produces a feeling where the scene content tracks your finger at a consistent apparent speed regardless of zoom level or screen density — the recommended default for most use cases.
+
+---
+
+### GestureSensitivity.Fixed
+
+```kotlin
+data class GestureSensitivity.Fixed(
+    val degreesPerPixel: Float,
+) : GestureSensitivity
+```
+
+Applies a constant angular delta per input pixel. This preserves the direct, unscaled orbit behaviour preferred when you want a precise, predictable feel that does not change with zoom.
+
+<ParamField path="degreesPerPixel" type="Float">
+  Angular delta in degrees applied per pixel of input movement. A value of `0.3f` means dragging 100 pixels rotates the camera 30 degrees.
+</ParamField>
+
+---
+
+## SceneGestures
+
+`SceneGestures` is a `@ConsistentCopyVisibility @Immutable` data class. It is the value type consumed by `Scene`. You obtain instances exclusively through the `Gestures` factory; direct construction is `internal`.
+
+| Property | Type | Description |
+|---|---|---|
+| `mode` | `SceneGestures.Mode` | Enum of `None`, `Orbit`, or `OrbitAndZoom`. |
+| `orbitEnabled` | `Boolean` | `true` when `mode` is `Orbit` or `OrbitAndZoom`. |
+| `zoomEnabled` | `Boolean` | `true` only when `mode` is `OrbitAndZoom`. |
+| `orbitSensitivity` | `GestureSensitivity` | The sensitivity policy applied to one-finger orbit. |
+
+### SceneGestures.Mode
+
+```kotlin
+enum class SceneGestures.Mode {
+    None,         // orbitEnabled = false, zoomEnabled = false
+    Orbit,        // orbitEnabled = true,  zoomEnabled = false
+    OrbitAndZoom, // orbitEnabled = true,  zoomEnabled = true
+}
+```
+
+---
+
+## Example
+
+```kotlin
+// Default adaptive orbit + zoom
+Scene(gestures = Gestures.orbitAndZoom()) { ... }
+
+// Fixed sensitivity — 0.3 degrees per pixel
+Scene(gestures = Gestures.orbit(sensitivity = GestureSensitivity.Fixed(0.3f))) { ... }
+
+// Disable all touch input (camera driven from code only)
+Scene(gestures = Gestures.none()) { ... }
+```
+
+<Tip>
+  `GestureSensitivity.Adaptive` is the right choice for most apps. Switch to `Fixed` only if you have specific requirements around gesture feel — for example, a product showcase where you want a very precise, slow orbit rate.
+</Tip>
+
+<Note>
+  Gesture events are consumed before reaching child composables. If you need to layer your own touch handling over the scene (e.g. a tap-to-select interaction), you should add pointer-input modifiers to composables **outside** the `Scene`, not inside the `content` block.
+</Note>

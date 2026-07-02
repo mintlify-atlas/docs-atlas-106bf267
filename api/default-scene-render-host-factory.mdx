@@ -1,0 +1,150 @@
+---
+title: "DefaultSceneRenderHostFactory — OpenGL Render Host"
+sidebarTitle: "DefaultSceneRenderHostFactory"
+description: "API reference for DefaultSceneRenderHostFactory. Wires the Spatial Compose API to the OpenGL ES 3.0 renderer for production Android use."
+---
+
+`DefaultSceneRenderHostFactory` is the production `SceneRenderHostFactory` implementation from the `spatial-compose-runtime-adapter` module. Passing it to `Scene(renderHostFactory = ...)` connects the declarative Compose layer to the full OpenGL ES 3.0 renderer, hooking up the GL surface, camera runtime, and Choreographer-driven frame loop — all without any boilerplate in your composable.
+
+## Import
+
+```kotlin
+import com.elitec.spatial_compose_runtime_adapter.DefaultSceneRenderHostFactory
+```
+
+**Module:** `spatial-compose-runtime-adapter`
+
+## Declaration
+
+```kotlin
+public object DefaultSceneRenderHostFactory : SceneRenderHostFactory
+```
+
+`DefaultSceneRenderHostFactory` is a Kotlin `object` — a singleton. You never instantiate it; simply reference it by name wherever a `SceneRenderHostFactory` is expected.
+
+---
+
+## What it does
+
+When `Scene` calls `DefaultSceneRenderHostFactory.create(context)`, it constructs a `SpatialRuntimeSceneRenderHost` that wires together the full rendering stack:
+
+1. **`SpatialGlRenderTarget`** — a `GLSurfaceView` wrapper that owns the EGL surface and OpenGL ES 3.0 context.
+2. **`SpatialCamera`** — the runtime camera that converts `CameraSnapshot` values (yaw, pitch, zoom) into view/projection matrices each frame.
+3. **`SpatialRuntime`** — the render loop that accepts a node list and a camera snapshot on every frame, built with a **`ChoreographerFrameScheduler`** so frame pacing is synchronized with the Android display vsync signal.
+
+The returned `SceneRenderHost` then exposes `updateScene()`, `updateCamera()`, `requestFrame()`, and `dispose()` to the `Scene` composable.
+
+### Internal class: `SpatialRuntimeSceneRenderHost`
+
+```kotlin
+public class SpatialRuntimeSceneRenderHost(context: Context) : SceneRenderHost {
+    private val renderTarget = SpatialGlRenderTarget(context)
+    private val runtimeCamera = SpatialCamera()
+    private val runtime = SpatialRuntime(
+        renderBackend = renderTarget,
+        frameScheduler = ChoreographerFrameScheduler(),
+        cameraRuntime = runtimeCamera,
+    )
+
+    override val view: View get() = renderTarget.view
+
+    override fun updateScene(nodes: List<RenderableNode>) { ... }
+    override fun updateCamera(cameraSnapshot: CameraSnapshot) { ... }
+    override fun requestFrame() { ... }
+    override fun dispose() { ... }
+}
+```
+
+---
+
+## SceneRenderHostFactory interface
+
+`DefaultSceneRenderHostFactory` satisfies the `SceneRenderHostFactory` functional interface defined in `spatial-compose`:
+
+```kotlin
+public fun interface SceneRenderHostFactory {
+    fun create(context: Context): SceneRenderHost
+}
+```
+
+`Scene` calls `create(context)` exactly once during composition, holds the resulting `SceneRenderHost` for the lifetime of the composable, and calls `dispose()` when the composable leaves the composition.
+
+---
+
+## SceneRenderHost interface
+
+The object returned by `create()` implements `SceneRenderHost`:
+
+<ParamField path="view" type="View" required>
+  The Android `View` used as the rendering surface. `Scene` embeds this view into the Compose layout via `AndroidView`. For `DefaultSceneRenderHostFactory` this is the `GLSurfaceView` owned by `SpatialGlRenderTarget`.
+</ParamField>
+
+<ParamField path="updateScene(nodes)" type="Unit">
+  Stages a new list of `RenderableNode` values for the next render pass. The list is held in `pendingNodes` and forwarded to `SpatialRuntime` on the next `requestFrame()` call.
+</ParamField>
+
+<ParamField path="updateCamera(cameraSnapshot)" type="Unit">
+  Stages a new `CameraSnapshot` for the next render pass. `CameraSnapshot` carries `yaw`, `pitch`, `zoom`, `version`, and `source` fields from `spatial-core`.
+</ParamField>
+
+<ParamField path="requestFrame()" type="Unit">
+  Triggers a render pass by forwarding the pending nodes and camera snapshot to `SpatialRuntime.requestFrame()`. The Choreographer scheduler ensures the pass runs on the next vsync boundary.
+</ParamField>
+
+<ParamField path="dispose()" type="Unit">
+  Shuts down the runtime (`SpatialRuntime.onShutdown()`) and releases all OpenGL resources held by the `SpatialGlRenderTarget`. Always called automatically by `Scene` when the composable is removed from the tree.
+</ParamField>
+
+---
+
+## Usage
+
+Pass `DefaultSceneRenderHostFactory` as the `renderHostFactory` argument of `Scene` for any production Android target:
+
+```kotlin
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.elitec.spatial_compose.Element
+import com.elitec.spatial_compose.Gestures
+import com.elitec.spatial_compose.Modifier3D
+import com.elitec.spatial_compose.Scene
+import com.elitec.spatial_compose.rememberCameraState
+import com.elitec.spatial_compose_runtime_adapter.DefaultSceneRenderHostFactory
+import com.elitec.spatial_units.deg
+import com.elitec.spatial_units.meters
+
+@Composable
+fun MyScene() {
+    Scene(
+        modifier = Modifier.fillMaxSize(),
+        renderHostFactory = DefaultSceneRenderHostFactory,
+        cameraState = rememberCameraState(),
+        gestures = Gestures.orbit(),
+    ) {
+        Element.Cube(modifier = Modifier3D.Default.size(2f.meters))
+    }
+}
+```
+
+---
+
+## Custom render host
+
+For testing, Compose Previews, or alternative rendering backends, you can supply your own `SceneRenderHostFactory` implementation instead of `DefaultSceneRenderHostFactory`. Because `SceneRenderHostFactory` is a `fun interface`, a lambda is all you need:
+
+```kotlin
+val noOpFactory = SceneRenderHostFactory { context ->
+    object : SceneRenderHost {
+        override val view: View = View(context)
+        override fun updateScene(nodes: List<RenderableNode>) = Unit
+        override fun updateCamera(cameraSnapshot: CameraSnapshot) = Unit
+        override fun requestFrame() = Unit
+        override fun dispose() = Unit
+    }
+}
+```
+
+<Note>
+  In tests or Compose Previews you may supply a no-op `SceneRenderHostFactory` implementation to avoid needing a real GL context. The `Scene` composable will still compose correctly — it simply won't produce any rendered output.
+</Note>

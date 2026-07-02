@@ -1,0 +1,125 @@
+---
+title: "Lighting in Spatial: Contracts and Core #1 Scope"
+sidebarTitle: "Lighting"
+description: "Understand how lighting works in Spatial Core #1 — flat-color rendering, the LightData contract, and what active lighting evaluation means for future milestones."
+---
+
+Spatial Core #1 uses a **flat-color material rendering model**. Every primitive is drawn with its material color passed directly to the fragment shader — there is no directional, ambient, or point light evaluation anywhere in the current render pipeline. Normals are not consulted, shadow maps are not computed, and no physically based shading math runs per fragment. This is a deliberate architectural choice: Core #1 focuses on declarative scene composition, cinematic camera motion, and smooth gestures. Real lighting is a future milestone. The `LightData` contract in `spatial-core` and the `Light` helpers in `spatial-light` exist so that scene authors can express lighting intent today, ensuring their code remains forward-compatible when a lighting milestone ships.
+
+---
+
+## Core #1 rendering model
+
+All primitives in Core #1 — cubes, spheres, planes — render with a **solid flat color** derived from their `MaterialData`. The fragment shader receives the material color as a `uColor` uniform (`vec4`) and writes it to the output directly:
+
+```glsl
+// Core #1 fragment shader (simplified)
+uniform vec4 uColor;
+out vec4 fragColor;
+
+void main() {
+    fragColor = uColor;
+}
+```
+
+There is no normal vector evaluation, no light direction dot-product, no specular highlight, and no shadow sampling. The rendered result is a uniformly shaded solid — clean and performant, designed to keep the Core #1 scope tight while the rest of the architecture is established.
+
+<Note>
+Real lighting evaluation — directional lights, ambient occlusion, PBR shading, and shadows — is intentionally outside Core #1 scope. These features are planned for a future milestone after the rendering, scene, camera, and Compose integration layers have been locked.
+</Note>
+
+---
+
+## LightData contract
+
+The `spatial-light` module exports a `Light` object that provides factory helpers for creating `LightData` values. `LightData` itself is defined in `spatial-core` as a shared data contract — a pure data class describing a light's direction, intensity, and color so that scene, light, and renderer modules can agree on shape without the renderer being required to act on it.
+
+### `Light.directional()`
+
+```kotlin
+object Light {
+    fun directional(
+        dirX: Float = 0f,
+        dirY: Float = -1f,
+        dirZ: Float = 0f,
+        intensity: Float = 1f,
+        r: Float = 1f,
+        g: Float = 1f,
+        b: Float = 1f,
+    ): LightData
+}
+```
+
+The default values model a white light pointing straight down (`dirY = -1f`), which is a reasonable starting point for most scenes. All parameters are optional, so a scene author can write `Light.directional()` to add a top-down white light with full intensity, or override individual fields:
+
+```kotlin
+// A warm, slightly angled directional light
+val sunLight = Light.directional(
+    dirX = 0.3f,
+    dirY = -0.8f,
+    dirZ = -0.5f,
+    intensity = 1.2f,
+    r = 1.0f,
+    g = 0.9f,
+    b = 0.7f,
+)
+```
+
+### The `LightData` data class
+
+`LightData` is defined in `spatial-core` as:
+
+```kotlin
+data class LightData(
+    val dirX: Float = 0f,
+    val dirY: Float = -1f,
+    val dirZ: Float = 0f,
+    val intensity: Float = 1f,
+    val r: Float = 1f,
+    val g: Float = 1f,
+    val b: Float = 1f,
+)
+```
+
+It carries exactly the information a directional light needs — a world-space direction vector `(dirX, dirY, dirZ)`, a scalar `intensity`, and an RGB color `(r, g, b)`. The contract is intentionally minimal: it is not tied to any renderer API or Android-specific type, so both the Kotlin-only scene modules and future renderers can depend on it without introducing platform coupling.
+
+`LightData` is a **pure data contract**. The scene graph and the light module agree on its shape, but Core #1 renderers are explicitly permitted to ignore it. No `LightData` value is transported through the render frame in the current pipeline.
+
+<Warning>
+Do not rely on `LightData` affecting rendering in Core #1. It is metadata only and is **not evaluated** by the current renderer. Passing a `LightData` value into your scene will have no visible effect until a future lighting milestone activates shader evaluation.
+</Warning>
+
+---
+
+## Future lighting
+
+Once Core #1 is complete and stable, subsequent milestones will progressively introduce real lighting evaluation. The current roadmap hints at:
+
+- **Directional light evaluation** — `LightData` direction and intensity passed as uniforms, dot-product shading in GLSL
+- **Physically Based Rendering (PBR)** — metalness/roughness workflows, environment maps
+- **Shadows** — shadow maps for directional lights
+
+Because `LightData` already exists as a stable contract, scene code authored today against `Light.directional()` will not need to change its call sites when a lighting milestone ships — only the renderer will start consuming the data it previously ignored.
+
+<Info>
+Scene authors can model lighting intent with `Light.directional()` today, so their code is forward-compatible when a lighting milestone ships. The contract shape is locked; only the renderer's response to it will change.
+</Info>
+
+---
+
+## Material color
+
+In Core #1 the effective surface color comes entirely from `MaterialData`, defined in `spatial-core`:
+
+```kotlin
+data class MaterialData(
+    val r: Float = 0.8f,
+    val g: Float = 0.8f,
+    val b: Float = 0.8f,
+    val a: Float = 1.0f,
+)
+```
+
+The default value is a neutral light-grey (`0.8, 0.8, 0.8, 1.0`). This is the color that reaches the fragment shader as `uColor` and becomes the final pixel color with no modification.
+
+`SpatialMaterial` — the higher-level material API intended for scene authors — is a stub in Core #1. Full material customization (texture maps, roughness, emissive channels) is a future feature scoped to a later milestone. For now, the flat grey default provides a clean neutral backdrop that works well for geometry validation and camera motion testing, which are Core #1's primary goals.

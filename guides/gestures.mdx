@@ -1,0 +1,113 @@
+---
+title: "Touch Gesture Input for 3D Scenes"
+sidebarTitle: "Gestures"
+description: "Configure one-finger orbit and two-finger pinch-zoom gestures in Spatial using the Gestures factory. Tune sensitivity with Adaptive or Fixed policies."
+---
+
+Spatial handles touch gesture recognition automatically when you pass a `SceneGestures` configuration to the [`Scene`](/guides/scene) composable. You never need to intercept raw `MotionEvent`s or write gesture detectors manually — just choose a mode and, optionally, tune the sensitivity. Three modes are available in Core #1.
+
+## Gesture Modes
+
+<CardGroup cols={3}>
+  <Card title="Gestures.none()" icon="hand">
+    Disables all gesture input. The camera is static unless you move it programmatically.
+  </Card>
+  <Card title="Gestures.orbit()" icon="rotate-right">
+    One-finger drag to orbit the camera horizontally and vertically. This is the default mode passed to `Scene`.
+  </Card>
+  <Card title="Gestures.orbitAndZoom()" icon="magnifying-glass">
+    One-finger drag to orbit **and** two-finger pinch to zoom. Best for interactive exploration.
+  </Card>
+</CardGroup>
+
+## Signatures
+
+```kotlin
+object Gestures {
+    fun none(): SceneGestures
+
+    fun orbit(
+        sensitivity: GestureSensitivity = GestureSensitivity.Adaptive,
+    ): SceneGestures
+
+    fun orbitAndZoom(
+        sensitivity: GestureSensitivity = GestureSensitivity.Adaptive,
+    ): SceneGestures
+}
+```
+
+## Passing Gestures to Scene
+
+```kotlin
+Scene(
+    modifier = Modifier.fillMaxSize(),
+    renderHostFactory = DefaultSceneRenderHostFactory,
+    cameraState = cameraState,
+    gestures = Gestures.orbitAndZoom(),
+) {
+    Element.Cube(...)
+    Element.Sphere(...)
+}
+```
+
+Swap `Gestures.orbitAndZoom()` for `Gestures.none()` or `Gestures.orbit()` at any time — `Scene` recomposes reactively when the `gestures` argument changes.
+
+## GestureSensitivity
+
+`GestureSensitivity` controls how many degrees of camera rotation each pixel of drag input produces.
+
+### `GestureSensitivity.Adaptive` (default)
+
+Scales drag sensitivity dynamically based on the current camera zoom, scene bounds, and viewport size. As the user zooms in, small drags still produce comfortable arcs rather than overshooting. This is the recommended policy for most apps.
+
+### `GestureSensitivity.Fixed`
+
+A direct, constant mapping — each pixel of drag always produces exactly `degreesPerPixel` of rotation, regardless of zoom or viewport size. Use this when you want exact, predictable control over the angular response.
+
+```kotlin
+Gestures.orbit(
+    sensitivity = GestureSensitivity.Fixed(degreesPerPixel = 0.3f),
+)
+```
+
+```kotlin
+sealed interface GestureSensitivity {
+    data object Adaptive : GestureSensitivity
+    data class Fixed(val degreesPerPixel: Float) : GestureSensitivity
+}
+```
+
+<Tip>
+  Use `GestureSensitivity.Adaptive` (the default) for best results. It adjusts automatically as the user zooms in, preventing over-sensitive orbiting at high zoom levels.
+</Tip>
+
+## SceneGestures Properties
+
+The `SceneGestures` data class exposes the following read-only properties:
+
+| Property | Type | Description |
+|---|---|---|
+| `orbitEnabled` | `Boolean` | `true` for `Orbit` and `OrbitAndZoom` modes. |
+| `zoomEnabled` | `Boolean` | `true` only for `OrbitAndZoom` mode. |
+| `orbitSensitivity` | `GestureSensitivity` | The sensitivity policy in effect for orbit drag input. |
+
+## Disabling Gestures Conditionally
+
+Because `SceneGestures` is an immutable value passed to `Scene`, you can switch modes reactively with standard Compose state:
+
+```kotlin
+var gestureMode by remember { mutableStateOf(true) }
+
+Scene(
+    gestures = if (gestureMode) Gestures.orbitAndZoom() else Gestures.none(),
+    ...
+) { ... }
+```
+
+<Note>
+  Gesture input is wired through the `Modifier.sceneGestureInput` internal modifier applied by `Scene` to its `AndroidView`. You do not need to handle `MotionEvent`s manually or attach your own gesture detectors.
+</Note>
+
+## Related
+
+- [Camera](/guides/camera) — control the orbit camera programmatically and animate it

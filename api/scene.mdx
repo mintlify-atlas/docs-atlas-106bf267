@@ -1,0 +1,83 @@
+---
+title: "Scene — Root Composable for 3D Rendering"
+sidebarTitle: "Scene"
+description: "API reference for the Scene composable. Sets up an OpenGL ES 3.0 viewport, manages the render lifecycle, and collects 3D elements from its content block."
+---
+
+`Scene` is the root composable that establishes the OpenGL rendering surface and collects 3D elements from its content block. Internally it wraps an `AndroidView`, pipes the composable element graph into the render host on every frame, and wires touch gestures to the `CameraState` you supply. Everything inside the `content` lambda — `Element.Cube`, `Element.Sphere`, `Element.Plane` — is collected into a scene graph and rendered via an OpenGL ES 3.0 backend on each recomposition.
+
+## Import
+
+```kotlin
+import com.elitec.spatial_compose.Scene
+```
+
+## Signature
+
+```kotlin
+@Composable
+fun Scene(
+    modifier: Modifier = Modifier,
+    renderHostFactory: SceneRenderHostFactory,
+    cameraState: CameraState = rememberCameraState(),
+    gestures: SceneGestures = Gestures.orbit(),
+    content: @Composable () -> Unit,
+)
+```
+
+## Parameters
+
+<ParamField path="modifier" type="Modifier" default="Modifier">
+  Standard Jetpack Compose `Modifier` applied to the `AndroidView` container. Use it to control layout size, padding, clipping, and other UI-layer properties — for example `Modifier.fillMaxSize()`.
+</ParamField>
+
+<ParamField path="renderHostFactory" type="SceneRenderHostFactory" required>
+  Factory that creates the Android-side render host responsible for the OpenGL surface and runtime. Pass `DefaultSceneRenderHostFactory` from the `spatial-compose-runtime-adapter` artifact for the standard OpenGL ES 3.0 renderer. The host is created once inside the `AndroidView` factory lambda and disposed automatically when the composable leaves the composition via `onRelease`.
+</ParamField>
+
+<ParamField path="cameraState" type="CameraState" default="rememberCameraState()">
+  Observable orbit-camera state. Defaults to `rememberCameraState()` which initialises the camera at yaw `0°`, pitch `0°`, zoom `1.0`. Provide a remembered or hoisted `CameraState` to read or programmatically drive the camera from outside the `Scene`.
+</ParamField>
+
+<ParamField path="gestures" type="SceneGestures" default="Gestures.orbit()">
+  Gesture configuration passed to the scene's pointer-input handler. Defaults to `Gestures.orbit()`, which enables one-finger drag-to-orbit with adaptive sensitivity. Use `Gestures.orbitAndZoom()` to additionally enable two-finger pinch zoom, or `Gestures.none()` to disable all touch input.
+</ParamField>
+
+<ParamField path="content" type="@Composable () -> Unit" required>
+  Composable lambda in which you declare 3D elements using `Element.Cube`, `Element.Sphere`, and `Element.Plane`. The runtime collects calls made inside this block into a scene graph on every recomposition and submits it to the render host.
+</ParamField>
+
+## Example
+
+```kotlin
+@Composable
+fun MyScene() {
+    val camera = rememberCameraState(yaw = 20f.deg, pitch = (-12f).deg, zoom = 1.25f)
+    Scene(
+        modifier = Modifier.fillMaxSize(),
+        renderHostFactory = DefaultSceneRenderHostFactory,
+        cameraState = camera,
+        gestures = Gestures.orbitAndZoom(),
+    ) {
+        Element.Cube(
+            modifier = Modifier3D.Default
+                .size(2f.meters)
+                .position(0f.meters, 0f.meters, (-5f).meters),
+        )
+    }
+}
+```
+
+## Notes
+
+<Note>
+  `Scene` wraps an `AndroidView` internally. The render host is created once in the `factory` lambda and disposed in the `onRelease` callback — you do not need to manage its lifecycle manually.
+</Note>
+
+<Tip>
+  Hoist `cameraState` above the `Scene` if you need to read `yaw`, `pitch`, or `zoom` in other parts of your UI, or if you want to animate the camera in response to button taps or other events.
+</Tip>
+
+<Warning>
+  `Scene` must be called from within a Compose context that has access to an `AndroidView`-capable host (i.e. an Activity or Fragment backed by `ComposeView`). It cannot be used in Compose Desktop or other non-Android targets.
+</Warning>

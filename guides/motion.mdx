@@ -1,0 +1,159 @@
+---
+title: "Animating the Camera with MotionSpec"
+sidebarTitle: "Motion"
+description: "Control how camera animations behave in Spatial using MotionSpec. Choose adaptive duration, instant jumps, or custom velocity and easing curves."
+---
+
+`MotionSpec` controls how `CameraState.animateTo()` computes animation duration and easing. Spatial uses an adaptive planner by default — `MotionSpec.Adaptive` — that derives how long an animation should take from the angular distance (yaw and pitch delta) and the relative zoom distance to travel, so short moves feel snappy and long arcs feel cinematic without you hand-tuning durations.
+
+## MotionSpec Variants
+
+### `MotionSpec.Adaptive` (default)
+
+The adaptive planner calculates duration from the distance the camera has to travel, then clamps the result to a comfortable range.
+
+| Property | Value |
+|---|---|
+| Default angular velocity | 180 °/sec |
+| Default zoom velocity | 1.75 per second |
+| Minimum duration | 120 ms |
+| Maximum duration | 1 200 ms |
+| Easing | `MotionEasing.SmoothStep` |
+
+Pass `MotionSpec.Adaptive` (or omit the `motion` parameter entirely) for most `animateTo` calls:
+
+```kotlin
+scope.launch {
+    cameraState.animateTo(
+        yaw   = 90f.deg,
+        pitch = (-20f).deg,
+        zoom  = 1.5f,
+        motion = MotionSpec.Adaptive,   // this is the default
+    )
+}
+```
+
+### `MotionSpec.Instant`
+
+Duration is 0 ms — the camera teleports to the target position with no intermediate frames. Use this for programmatic resets or state restoration where an animated transition would be confusing:
+
+```kotlin
+cameraState.animateTo(
+    yaw  = 0f.deg,
+    pitch = 0f.deg,
+    zoom  = 1f,
+    motion = MotionSpec.Instant,
+)
+```
+
+<Tip>
+  For camera fly-throughs triggered by buttons or navigation events, `MotionSpec.Adaptive` usually feels best. Use `MotionSpec.Instant` for programmatic resets where the user did not initiate the transition.
+</Tip>
+
+### `MotionSpec.custom`
+
+Factory function for tuned profiles when neither `Adaptive` nor `Instant` is quite right:
+
+```kotlin
+val slowOrbit = MotionSpec.custom(
+    minDurationMillis                       = 200L,
+    maxDurationMillis                       = 800L,
+    targetAngularVelocityDegreesPerSecond   = 120f,
+    targetZoomVelocityPerSecond             = 1.0f,
+    easing                                  = MotionEasing.SmoothStep,
+)
+```
+
+All parameters have sensible defaults drawn from the same constants as `MotionSpec.Adaptive`, so you only need to override what you want to change.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `minDurationMillis` | `Long` | `120` | Floor for adaptive duration in milliseconds. |
+| `maxDurationMillis` | `Long` | `1200` | Ceiling for adaptive duration in milliseconds. |
+| `targetAngularVelocityDegreesPerSecond` | `Float` | `180f` | Ideal orbit speed; drives adaptive duration calculation. |
+| `targetZoomVelocityPerSecond` | `Float` | `1.75f` | Ideal zoom speed; drives adaptive duration calculation. |
+| `easing` | `MotionEasing` | `SmoothStep` | Interpolation curve applied to the animation fraction. |
+
+## Using MotionSpec with `animateTo`
+
+```kotlin
+val scope = rememberCoroutineScope()
+
+Button(
+    onClick = {
+        scope.launch {
+            cameraState.animateTo(
+                yaw   = 180f.deg,
+                pitch = (-30f).deg,
+                zoom  = 1.5f,
+                motion = MotionSpec.Adaptive,
+            )
+        }
+    }
+) {
+    Text("Fly to back")
+}
+```
+
+## Explicit Duration Override
+
+`animateTo` also accepts an optional `durationMillis` parameter that bypasses the adaptive planner entirely and forces an exact animation length:
+
+```kotlin
+scope.launch {
+    cameraState.animateTo(
+        yaw           = 90f.deg,
+        durationMillis = 500L,     // always 500 ms, ignores MotionSpec velocity
+    )
+}
+```
+
+`durationMillis` takes precedence over the profile's adaptive calculation when both are provided.
+
+## Easing
+
+`MotionEasing` is a single-function interface that maps a linear progress fraction `[0, 1]` to a visual progress fraction:
+
+### `MotionEasing.SmoothStep` (default)
+
+Applies smooth acceleration at the start and deceleration at the end using the cubic smoothstep formula `t² × (3 − 2t)`. This is the default for `MotionSpec.Adaptive` and `MotionSpec.custom`.
+
+### `MotionEasing.Linear`
+
+Constant velocity — progress is applied directly with no acceleration or deceleration. Used internally by `MotionSpec.Instant`.
+
+## Adaptive Duration Algorithm
+
+The adaptive planner in `resolveCameraMotionPlan` computes duration in three steps:
+
+<Steps>
+  <Step title="Compute angular distance">
+    Angular distance is the Euclidean length of the yaw and pitch deltas:
+    ```
+    angularDistance = sqrt(yawDelta² + pitchDelta²)
+    ```
+  </Step>
+  <Step title="Compute zoom distance">
+    Zoom distance uses a logarithmic (relative) measure so that zooming from 1× to 2× feels the same as zooming from 2× to 4×:
+    ```
+    zoomRelativeDelta = |ln(targetZoom / startZoom)|
+    ```
+  </Step>
+  <Step title="Derive and clamp duration">
+    Each distance is divided by its target velocity to get a candidate duration in milliseconds. The larger of the two candidates wins, then the result is clamped to `[minDurationMillis, maxDurationMillis]`:
+    ```
+    duration = clamp(
+        max(angularDistance / angularVelocity, zoomDelta / zoomVelocity) × 1000,
+        min = 120ms,
+        max = 1200ms,
+    )
+    ```
+  </Step>
+</Steps>
+
+The yaw path also chooses the shortest arc — e.g. rotating from 350° to 10° travels +20° rather than −340°.
+
+## Related
+
+- [Camera](/guides/camera) — full reference for `CameraState` and `animateTo`
+- [API — MotionSpec](/api/motion-spec) — complete API reference for `MotionSpec` and `MotionEasing`

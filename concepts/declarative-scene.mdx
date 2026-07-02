@@ -1,0 +1,153 @@
+---
+title: "What is a Declarative 3D Scene?"
+sidebarTitle: "Declarative Scene"
+description: "Understand how Spatial uses declarative composition to describe 3D scenes as state, automatically re-rendering when that state changes."
+---
+
+In Spatial, you describe **what your 3D scene should look like**, not the sequence of GPU commands needed to draw it. This is the declarative model: you express intent, and the library figures out how to fulfill it. You place a cube at a position in world space, set its size in meters, and Spatial takes care of building the model matrix, binding the vertex buffer, setting shader uniforms, and issuing the draw call — none of which you ever write directly.
+
+## From imperative to declarative
+
+Traditional OpenGL programming is **imperative**: you issue commands step by step, in the right order, at the right time. A minimal cube render in raw OpenGL looks like:
+
+```kotlin
+// Imperative — raw OpenGL ES 3.0
+GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vertexBufferId)
+GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, 0, 0)
+GLES30.glEnableVertexAttribArray(0)
+GLES30.glUniformMatrix4fv(modelMatrixLocation, 1, false, modelMatrix, 0)
+GLES30.glUniform4f(colorLocation, 0.8f, 0.2f, 0.2f, 1.0f)
+GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, indexBufferId)
+GLES30.glDrawElements(GLES30.GL_TRIANGLES, indexCount, GLES30.GL_UNSIGNED_INT, 0)
+```
+
+You must manually manage buffer lifecycles, coordinate shader uniform locations, track draw order, and rebuild matrices whenever the camera or object moves. Adding a second primitive doubles the surface area of code you must keep consistent.
+
+**Spatial removes all of that.** The same cube, written declaratively:
+
+```kotlin
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.elitec.spatial_compose.Element
+import com.elitec.spatial_compose.Gestures
+import com.elitec.spatial_compose.Modifier3D
+import com.elitec.spatial_compose.Scene
+import com.elitec.spatial_compose_runtime_adapter.DefaultSceneRenderHostFactory
+import com.elitec.spatial_compose.rememberCameraState
+import com.elitec.spatial_units.deg
+import com.elitec.spatial_units.meters
+
+@Composable
+fun CoreOneScene() {
+    val cameraState = rememberCameraState(
+        yaw = 20f.deg,
+        pitch = (-12f).deg,
+        zoom = 1.25f,
+    )
+    Scene(
+        modifier = Modifier.fillMaxSize(),
+        renderHostFactory = DefaultSceneRenderHostFactory,
+        cameraState = cameraState,
+        gestures = Gestures.orbitAndZoom(),
+    ) {
+        Element.Cube(
+            modifier = Modifier3D.Default
+                .size(2f.meters)
+                .position(0f.meters, 0f.meters, (-5f).meters),
+        )
+
+        Element.Sphere(
+            modifier = Modifier3D.Default
+                .size(1f.meters)
+                .position(3f.meters, 0f.meters, (-8f).meters),
+        )
+    }
+}
+```
+
+The GPU pipeline is entirely hidden. `Modifier3D` transforms are converted to model matrices internally, mesh buffers are registered once and reused, and every frame is scheduled through Android's Choreographer so rendering stays in sync with the display refresh rate.
+
+## How re-rendering works
+
+The `Scene` composable orchestrates the full pipeline from declarative description to pixels on screen. Here is what happens on each composition pass:
+
+<Steps>
+  <Step title="Scene graph collection">
+    `Scene` calls `rememberSceneGraph(content)`, which provides a `LocalSceneContentScope` via `CompositionLocalProvider`. Every `Element.Cube`, `Element.Sphere`, or `Element.Plane` inside the `content` lambda registers a `SceneNode` (a pairing of `PrimitiveShape` and `Modifier3D`) into the scope's internal `SceneBuilder`.
+  </Step>
+  <Step title="Node conversion">
+    The resulting `List<SceneNode>` is mapped to `List<RenderableNode>`. Each `RenderableNode` carries a `meshId` string, a 16-element `FloatArray` model matrix derived from the `Modifier3D` transforms, and a `MaterialData` RGBA color.
+
+    ```kotlin
+    val renderableNodes = sceneNodes.map(SceneNode::toRenderableNode)
+    ```
+  </Step>
+  <Step title="Camera snapshot">
+    A `CameraSnapshot` is taken from `CameraState`. The snapshot is an immutable value type — it captures `yaw`, `pitch`, and `zoom` at the exact moment of composition, preventing tearing if the camera continues to animate between frames.
+
+    ```kotlin
+    val cameraSnapshot = cameraState.snapshot()
+    ```
+  </Step>
+  <Step title="Frame submission">
+    Both the node list and the camera snapshot are handed to the render host:
+
+    ```kotlin
+    renderHostHolder.host?.renderSceneFrame(renderableNodes, cameraSnapshot)
+    ```
+
+    `DefaultSceneRenderHostFactory` creates a `SpatialRuntimeSceneRenderHost`, which owns a `SpatialRuntime`. The runtime passes the data to `SpatialGlRenderer` via a `ChoreographerFrameScheduler`, where OpenGL draw calls are issued on the GL thread.
+  </Step>
+</Steps>
+
+When Compose state changes — for example, an object's position or the camera yaw — the `Scene` composable recomposes, the `rememberSceneGraph` scope resets and re-collects nodes, and the updated node list is submitted for the next frame. **No manual invalidation is required.**
+
+## Reactive state
+
+`CameraState` is annotated `@Stable` and its observable properties are backed by Compose `mutableStateOf`. This means any composable that reads `cameraState.yaw`, `cameraState.pitch`, or `cameraState.zoom` automatically subscribes to those values and recomposes when they change:
+
+```kotlin
+@Stable
+class CameraState internal constructor(
+    yaw: Angle,
+    pitch: Angle,
+    zoom: Float,
+    cameraRuntime: CameraRuntimeContract? = null,
+) {
+    var yaw: Angle by mutableStateOf(yaw)
+        private set
+    var pitch: Angle by mutableStateOf(pitch)
+        private set
+    var zoom: Float by mutableFloatStateOf(zoom.coerceIn(MIN_ZOOM, MAX_ZOOM))
+        private set
+    // ...
+}
+```
+
+You can project any camera property into your UI layer without writing a single observer, listener, or `LaunchedEffect`. Reading `cameraState.yaw` in a `Text` composable is all that's needed:
+
+```kotlin
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import com.elitec.spatial_compose.CameraState
+import com.elitec.spatial_compose.rememberCameraState
+
+@Composable
+fun CameraDebugOverlay() {
+    val cameraState: CameraState = rememberCameraState(
+        yaw = 20f.deg,
+        pitch = (-12f).deg,
+        zoom = 1.25f,
+    )
+
+    // This Text recomposes automatically whenever the camera orbits or zooms.
+    Text(text = "Yaw: ${cameraState.yaw}  |  Zoom: ${"%.2f".format(cameraState.zoom)}x")
+}
+```
+
+Because the `yaw` and `zoom` properties are `mutableStateOf`-backed, Compose tracks the read and re-executes only the composable that accessed them — not the entire `Scene`. This fine-grained reactivity is the same mechanism Jetpack Compose uses for all UI state.
+
+<Info>
+  **Key principle:** Spatial scenes describe state. The library decides when and how to redraw.
+</Info>

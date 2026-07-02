@@ -1,0 +1,213 @@
+---
+title: "CameraState — Orbit Camera State API"
+sidebarTitle: "CameraState"
+description: "API reference for CameraState. Read yaw, pitch, and zoom as Compose state, then orbit, zoom, jump, or animate the camera programmatically."
+---
+
+`CameraState` is a `@Stable` Compose state holder that represents an orbit camera. Its observable properties — `yaw`, `pitch`, and `zoom` — are backed by Compose `mutableStateOf` / `mutableFloatStateOf` and trigger recomposition in any composable that reads them. Under the hood, `CameraState` delegates to a `SpatialCamera` runtime and a `ComposeFrameCameraAnimationScheduler` that hooks into the Compose frame clock for smooth, frame-synchronised animation. You should never instantiate `CameraState` directly; always use `rememberCameraState()`.
+
+## Import
+
+```kotlin
+import com.elitec.spatial_compose.CameraState
+import com.elitec.spatial_compose.rememberCameraState
+```
+
+---
+
+## Factory Function
+
+```kotlin
+@Composable
+fun rememberCameraState(
+    yaw: Angle = 0f.deg,
+    pitch: Angle = 0f.deg,
+    zoom: Float = 1f,
+): CameraState
+```
+
+Creates and remembers a `CameraState` instance that survives recomposition. Pass initial values to set the starting orientation of the orbit camera.
+
+<ParamField path="yaw" type="Angle" default="0f.deg">
+  Initial horizontal orbit angle around the scene's Y axis. `0f.deg` positions the camera looking straight down the −Z axis. Use the `deg` extension property from `spatial-units` (e.g. `90f.deg`).
+</ParamField>
+
+<ParamField path="pitch" type="Angle" default="0f.deg">
+  Initial vertical tilt of the orbit camera. Clamped to the safe range `[−89°, 89°]` to prevent gimbal flip. Negative values tilt the camera downward (looking down into a scene).
+</ParamField>
+
+<ParamField path="zoom" type="Float" default="1f">
+  Initial visual magnification factor. `1.0` is the default field of view. Values above `1.0` zoom in (objects appear larger); values below `1.0` zoom out. Clamped to `[MIN_ZOOM, MAX_ZOOM]` which are `0.3` and `4.0` respectively.
+</ParamField>
+
+---
+
+## Observable Properties
+
+All properties below are backed by Compose state and will trigger recomposition in any composable that reads them.
+
+| Property | Type | Description |
+|---|---|---|
+| `yaw` | `Angle` | Current horizontal orbit angle. Read-only from the outside; mutated by orbit and animate calls. |
+| `pitch` | `Angle` | Current vertical tilt. Clamped to `[−89°, 89°]`. |
+| `zoom` | `Float` | Current visual magnification factor. Clamped to `[0.3, 4.0]`. |
+| `version` | `Long` | Monotonically increasing counter incremented on every mutation. Useful for triggering effects that need to react to any camera change. |
+| `source` | `CameraUpdateSource` | Origin of the most recent update: `Gesture`, `Remote`, or `Animation`. |
+
+---
+
+## Methods
+
+### orbitTo
+
+```kotlin
+fun orbitTo(
+    yaw: Angle = this.yaw,
+    pitch: Angle = this.pitch,
+    source: CameraUpdateSource = CameraUpdateSource.Remote,
+)
+```
+
+Snaps the camera to an absolute orbit orientation instantly. Both `yaw` and `pitch` default to the current values, so you can change only one axis if you wish.
+
+---
+
+### orbitBy
+
+```kotlin
+fun orbitBy(
+    deltaYawDegrees: Float,
+    deltaPitchDegrees: Float,
+    source: CameraUpdateSource = CameraUpdateSource.Gesture,
+)
+```
+
+Applies a relative orbit delta using `GestureMotionPolicy.Raw` (no inertia). Positive `deltaYawDegrees` rotates the camera to the right; positive `deltaPitchDegrees` tilts it upward. Typically called from a custom gesture handler.
+
+---
+
+### zoomTo
+
+```kotlin
+fun zoomTo(
+    zoom: Float,
+    source: CameraUpdateSource = CameraUpdateSource.Remote,
+)
+```
+
+Snaps the camera to an absolute zoom level. The value is clamped to `[MIN_ZOOM, MAX_ZOOM]` (0.3–4.0) before being applied.
+
+---
+
+### zoomBy
+
+```kotlin
+fun zoomBy(
+    scaleDelta: Float,
+    source: CameraUpdateSource = CameraUpdateSource.Gesture,
+)
+```
+
+Applies a multiplicative zoom delta. A `scaleDelta` greater than `1f` zooms in (objects appear closer/larger); a value less than `1f` zooms out. The result is clamped to the safe zoom range.
+
+---
+
+### jumpTo
+
+```kotlin
+fun jumpTo(
+    yaw: Angle = this.yaw,
+    pitch: Angle = this.pitch,
+    zoom: Float = this.zoom,
+    source: CameraUpdateSource = CameraUpdateSource.Remote,
+)
+```
+
+Instantly sets all three camera values — yaw, pitch, and zoom — in a single call. No animation is applied. Use this when you need to teleport the camera without any transition.
+
+---
+
+### syncSnapshot
+
+```kotlin
+fun syncSnapshot(snapshot: CameraSnapshot)
+```
+
+Synchronises `CameraState` from an externally obtained `CameraSnapshot`. Useful when driving the camera from a remote data source or replaying a recorded session.
+
+---
+
+### animateTo
+
+```kotlin
+suspend fun animateTo(
+    yaw: Angle = this.yaw,
+    pitch: Angle = this.pitch,
+    zoom: Float = this.zoom,
+    durationMillis: Long? = null,
+    motion: MotionSpec = MotionSpec.Adaptive,
+)
+```
+
+Performs an animated transition to the target camera orientation. This is a `suspend` function and must be called from a coroutine (typically launched from `rememberCoroutineScope()`). The animation uses the Compose frame clock for smooth, lifecycle-aware updates.
+
+<ParamField path="yaw" type="Angle" default="this.yaw">
+  Target horizontal orbit angle. Defaults to the current yaw so you can animate only one axis at a time. The planner automatically takes the shortest angular path.
+</ParamField>
+
+<ParamField path="pitch" type="Angle" default="this.pitch">
+  Target vertical tilt. Clamped to the safe range `[−89°, 89°]` before the animation starts.
+</ParamField>
+
+<ParamField path="zoom" type="Float" default="this.zoom">
+  Target zoom level. Clamped to `[0.3, 4.0]` before the animation starts.
+</ParamField>
+
+<ParamField path="durationMillis" type="Long?" default="null">
+  Optional explicit animation duration in milliseconds. When `null`, the duration is derived adaptively from the angular and zoom distance to travel using the `MotionSpec` planner. Pass an explicit value to override the adaptive calculation.
+</ParamField>
+
+<ParamField path="motion" type="MotionSpec" default="MotionSpec.Adaptive">
+  Animation profile controlling duration bounds, easing, and velocity. Defaults to `MotionSpec.Adaptive`. Pass `MotionSpec.Instant` for an immediate jump, or `MotionSpec.custom(...)` to tune the velocity and duration range.
+</ParamField>
+
+---
+
+### snapshot
+
+```kotlin
+fun snapshot(): CameraSnapshot
+```
+
+Returns an immutable `CameraSnapshot` capturing the current yaw, pitch, zoom, version, and source. The snapshot is safe to read off the main thread or to pass to other modules.
+
+---
+
+## Example
+
+```kotlin
+val scope = rememberCoroutineScope()
+val camera = rememberCameraState(yaw = 20f.deg, pitch = (-12f).deg, zoom = 1.25f)
+
+Button(onClick = {
+    scope.launch {
+        camera.animateTo(
+            yaw = 180f.deg,
+            pitch = (-20f).deg,
+            zoom = 1.5f,
+        )
+    }
+}) { Text("Animate camera") }
+```
+
+<Tip>
+  Pass `camera` to `Scene(cameraState = camera)` and then read `camera.yaw` or `camera.zoom` in other composables to build a camera-info overlay that updates reactively.
+</Tip>
+
+<Note>
+  `CameraState` is annotated `@Stable` so Compose can skip recomposition of composables that receive it as a parameter when its reference has not changed. Only the individual state-backed properties (`yaw`, `pitch`, `zoom`, `version`) trigger recomposition in composables that read them.
+</Note>
+
+<Warning>
+  `animateTo` is a suspend function. Calling it without a coroutine scope will not compile. Use `rememberCoroutineScope()` in a composable context, or a `viewModelScope` / `lifecycleScope` when called from outside Compose.
+</Warning>

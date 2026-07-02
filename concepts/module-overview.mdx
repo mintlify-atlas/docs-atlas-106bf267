@@ -1,0 +1,289 @@
+---
+title: "Spatial Module Reference and Responsibilities"
+sidebarTitle: "Module Overview"
+description: "A reference for each Spatial module: what it does, its public API surface, and how it fits into the overall architecture."
+---
+
+Spatial is split into **13 focused modules**, each owning a single responsibility with no leakage across boundaries. This modularity means the math layer can run in a pure JVM test, the renderer can be swapped without touching any Compose code, and new features can be added as isolated modules rather than bolted onto a monolith. Despite the module count, most apps interact with only a small subset directly — the rest are pulled in automatically by Gradle.
+
+<Note>
+  For most apps, you only need three modules in your `build.gradle.kts`: `spatial-compose`, `spatial-compose-runtime-adapter`, and `spatial-units`. All others are pulled in transitively.
+
+  ```kotlin
+  // build.gradle.kts (app module)
+  dependencies {
+      implementation("com.elitec:spatial-compose:<version>")
+      implementation("com.elitec:spatial-compose-runtime-adapter:<version>")
+      implementation("com.elitec:spatial-units:<version>")
+  }
+  ```
+</Note>
+
+---
+
+### spatial-compose
+
+| | |
+|---|---|
+| **Type** | Android Library |
+| **Direct app dependency** | ✅ Yes — primary entry point |
+
+The declarative Compose integration layer and the main module application code interacts with. It owns every API symbol that lives in the stable `com.elitec.spatial_compose` root package.
+
+**Key responsibilities:**
+- `Scene` composable — Android view hosting, render-host lifecycle, gesture modifier wiring, scene graph collection, and frame submission
+- `Element.Cube`, `Element.Sphere`, `Element.Plane` — declarative primitive element composables
+- `Modifier3D` — declarative 3D transform DSL (`.size()`, `.position()`, `.rotateY()`, etc.)
+- `CameraState` — `@Stable` Compose state holder for `yaw`, `pitch`, and `zoom`, backed by `mutableStateOf`
+- `rememberCameraState` — Compose `remember`-style factory for `CameraState`
+- `rememberSceneGraph` — internal scene graph collection using `CompositionLocalProvider`
+- `SceneNode` — internal `@Immutable` data class pairing a `PrimitiveShape` with a `Modifier3D`
+- `Scene3D.kt` root-package facade — re-exports all stable symbols as `typealias` and thin delegation
+
+<Warning>
+  `spatial-compose` does **not** render directly. It orchestrates state, composition, and declarative APIs. The actual OpenGL pipeline lives in `spatial-renderer`, wired in by `spatial-compose-runtime-adapter`.
+</Warning>
+
+---
+
+### spatial-compose-runtime-adapter
+
+| | |
+|---|---|
+| **Type** | Android Library |
+| **Direct app dependency** | ✅ Yes — supplies the render host |
+
+The bridge between the Compose layer and the real Android rendering pipeline. Without this module, `Scene` has no host to render into.
+
+**Key responsibilities:**
+- `DefaultSceneRenderHostFactory` — `object` implementing `SceneRenderHostFactory`; the single value you pass to `Scene(renderHostFactory = ...)` in almost every app
+- `SpatialRuntimeSceneRenderHost` — concrete `SceneRenderHost` that owns a `SpatialGlRenderTarget`, a `SpatialCamera`, and a `SpatialRuntime`
+- Wires `ChoreographerFrameScheduler` for vsync-aligned frame requests
+- Manages render host lifecycle: `onInitialize()` at construction, `dispose()` on `AndroidView.onRelease`
+- Forwards `updateScene(nodes)`, `updateCamera(snapshot)`, and `requestFrame()` calls to `SpatialRuntime`
+
+---
+
+### spatial-units
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ✅ Yes — used anywhere you express a measurement |
+
+A lightweight typed-units system that eliminates the ambiguity of raw `Float` parameters throughout the API.
+
+**Key responsibilities:**
+- `Meter` value type and `.meters` extension property
+- `Centimeter` value type and `.cm` extension property
+- `Angle` value type and `.deg` extension property (converting to radians internally)
+- Unit conversion utilities for cross-unit arithmetic
+- Enforces spatial consistency: `Modifier3D.size(2f.meters)` cannot accidentally receive a raw degree value
+
+```kotlin
+// Correct — typed units prevent unit confusion
+Modifier3D.Default
+    .size(2f.meters)
+    .position(0f.meters, 0f.meters, (-5f).meters)
+
+val cameraState = rememberCameraState(
+    yaw = 20f.deg,
+    pitch = (-12f).deg,
+    zoom = 1.25f,
+)
+```
+
+---
+
+### spatial-core
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose` |
+
+The contract and orchestration layer. Defines shared value types that cross module boundaries so no module invents its own copy. This module has no dependencies on Android, Compose, or OpenGL.
+
+**Key responsibilities:**
+- `RenderableNode` — processed scene node ready for the renderer; carries `meshId`, `modelMatrix` (`FloatArray(16)`), and `MaterialData`
+- `MaterialData` — flat-color RGBA contract (`r`, `g`, `b`, `a` floats)
+- `LightData` — directional light metadata (direction, intensity, color); Core #1 does **not** evaluate lighting in shaders — this type is contract-only
+- `CameraSnapshot` — immutable value capturing `yaw`, `pitch`, `zoom`, `version`, and `CameraUpdateSource` for thread-safe cross-layer transfer
+- `SpatialRenderLoopContract` — platform-agnostic render loop interface (`onInitialize`, `onFrame`, `onShutdown`)
+- `FrameSnapshot` — carries `frameTimeNanos` for timing-accurate frame callbacks
+
+---
+
+### spatial-camera
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose` |
+
+Camera behavior and cinematic motion. This module owns the camera runtime that `CameraState` delegates to internally.
+
+**Key responsibilities:**
+- `SpatialCamera` — `CameraRuntimeContract` implementation; stateful orbit camera with pitch clamping and zoom bounds
+- `CameraRuntimeContract` — interface defining `applyDelta`, `orbitTo`, `zoomTo`, `jumpTo`, `animateTo`, `syncSnapshot`, and `snapshot`
+- `CameraDelta` — value type for incremental yaw, pitch, and zoom-scale changes
+- `GestureMotionPolicy` — controls whether deltas are applied raw or through damping/inertia
+- `CameraAnimationSpec` — `Instant` vs `Tween(durationMs, easing)` animation policies
+- Orbit, pan, zoom, damping, inertia, and smooth cinematic transitions
+
+---
+
+### spatial-motion
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose` |
+
+Animation and motion planning engine. Provides the intelligence behind smooth, context-aware camera transitions.
+
+**Key responsibilities:**
+- `MotionSpec` — `Adaptive`, `Quick`, `Deliberate`, `Instant` motion profiles exposed in the public API
+- `resolveCameraMotionPlan` — computes an appropriate duration and easing curve given start state, target state, and a `MotionSpec`; uses angular distance and zoom delta to scale duration adaptively
+- Animation timeline primitives: interpolation, spring systems, and easing functions
+- `toCameraMotionProfile()` — converts a public `MotionSpec` to an internal `CameraMotionProfile` used by the camera runtime
+
+<Tip>
+  When calling `cameraState.animateTo(yaw = 90f.deg, motion = MotionSpec.Adaptive)`, the motion module automatically calculates a duration proportional to how far the camera needs to travel. Short movements feel snappy; large sweeps feel cinematic — without manual tuning.
+</Tip>
+
+---
+
+### spatial-gesture
+
+| | |
+|---|---|
+| **Type** | Android Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose` |
+
+Touch and gesture recognition. This module is Android-aware because it handles `MotionEvent`, but it has no knowledge of Compose or OpenGL.
+
+**Key responsibilities:**
+- Multi-touch recognition and pointer tracking
+- Orbit gesture detection — translates finger drag delta into `OrbitGestureDelta(deltaYaw, deltaPitch)`
+- Pinch-zoom detection — translates two-finger spread/pinch into `PinchZoomDelta(scaleDelta)`
+- Velocity tracking and gesture smoothing to reduce jitter
+- `MotionEvent` handling and event delegation
+
+---
+
+### spatial-renderer
+
+| | |
+|---|---|
+| **Type** | Android Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose-runtime-adapter` |
+
+The OpenGL ES 3.0 rendering pipeline. This is the only module that issues GPU commands.
+
+**Key responsibilities:**
+- `SpatialGlRenderer` — `GLSurfaceView.Renderer` implementation; compiles GLSL shaders, manages vertex and index buffer objects, resolves mesh IDs, and issues `glDrawElements` / `glDrawArrays` per `RenderableNode`
+- `SpatialGlRenderTarget` — owns the `GLSurfaceView`, creates and configures the renderer, and exposes the `View` for embedding in `AndroidView`
+- `PrimitiveMeshRegistry` — maps string mesh IDs (`"cube"`, `"sphere"`, `"plane"`) to `MeshData`; buffers are uploaded to GPU on `onSurfaceCreated`
+- `ChoreographerFrameScheduler` — schedules frame callbacks aligned to the display vsync via `Choreographer.postFrameCallback`
+- Vertex shader: MVP transform (`uProjectionMatrix * uViewMatrix * uModelMatrix * aPosition`)
+- Fragment shader: flat-color output (`fragColor = uColor`) — no lighting evaluation in Core #1
+- `orbitDistanceForVisualZoom` — converts visual zoom magnitude to orbital camera distance (`baseDistance / zoom`)
+
+---
+
+### spatial-scene
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose` |
+
+The scene graph and hierarchical structure. This module is pure Kotlin with no Android or OpenGL imports.
+
+**Key responsibilities:**
+- Node hierarchy representation
+- Transform propagation through parent-child relationships
+- Scene graph traversal algorithms
+- Visibility management per node
+- Dirty flag tracking to avoid redundant transform recalculation
+- Parent-child relationship management
+
+---
+
+### spatial-geometry
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose` |
+
+Procedural mesh data generation. Produces the raw vertex and index arrays that `spatial-renderer` uploads to the GPU.
+
+**Key responsibilities:**
+- Cube mesh generation (8 vertices, 12 triangles, indexed)
+- Sphere mesh generation (UV sphere with configurable segments)
+- Plane mesh generation (quad with UV coordinates)
+- Cylinder mesh generation
+- Normal vector calculation per mesh
+- UV coordinate generation for future texture support
+- `MeshData` — carries `vertices: FloatArray`, `indices: IntArray`, and `drawMode`
+
+---
+
+### spatial-material
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose` |
+
+Material abstraction for surface appearance. Core #1 supports flat-color materials; the module is designed to accommodate textures and PBR in future iterations.
+
+**Key responsibilities:**
+- Flat-color material definition for Core #1 — color passed directly to the fragment shader as `uColor`
+- `MaterialData` production for `RenderableNode` construction
+- Material binding contracts for the renderer pipeline
+- Lighting property metadata (shape, direction, color, intensity) — active light evaluation is **outside Core #1 scope**
+- Foundation interfaces for future texture materials and shader metadata
+
+---
+
+### spatial-light
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive as contract metadata |
+
+Lighting contracts and helper factories. In Core #1, this module exists to establish the shared shape of light data across modules; no lights are transported through the render frame and no lighting is evaluated in shaders.
+
+**Key responsibilities:**
+- `LightData` contract (defined in `spatial-core`) — directional light direction, intensity, and RGB color
+- Light helper factories for creating directional light metadata instances
+- Establishes the interface shape that future renderer backends will implement for real shaded lighting
+
+<Warning>
+  Core #1 uses flat-color materials. `LightData` exists so modules can agree on the shape of light information, but the renderer does **not** compute directional, ambient, point, or physically-based light contributions. Real lighting evaluation is a post-Core #1 feature.
+</Warning>
+
+---
+
+### spatial-math
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive via multiple modules |
+
+The pure mathematical foundation. This is the deepest module in the dependency graph and the one with the strictest constraints.
+
+**Key responsibilities:**
+- `Vec2`, `Vec3`, `Vec4` — 2D, 3D, and 4D vector types with arithmetic operators
+- `Quaternion` — unit quaternion for rotation representation and interpolation (SLERP)
+- `Matrix4` — 4×4 transformation matrix with multiplication, inversion, and transpose
+- Projection math utilities (perspective, orthographic)
+
+<Note>
+  `spatial-math` must remain **lightweight, pure Kotlin, allocation-friendly, and dependency-free**. It must not import Android, Compose, or any third-party library. `Vec3`, `Matrix4`, and `Quaternion` are not candidates for dependency injection.
+</Note>

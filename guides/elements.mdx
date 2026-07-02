@@ -1,0 +1,107 @@
+---
+title: "Adding 3D Primitives with Element"
+sidebarTitle: "Elements"
+description: "Place Cube, Sphere, and Plane primitives in your Spatial scene using the Element object. Control position, rotation, and size with Modifier3D."
+---
+
+`Element` is the façade you use to place 3D primitives inside a [`Scene`](/guides/scene) content block. Each function in the `Element` object registers a `SceneNode` in the running scene graph — the same declarative, recomposition-driven model you already know from Jetpack Compose. Three mesh shapes are available in Core #1.
+
+## Available Primitives
+
+<CardGroup cols={3}>
+  <Card title="Element.Cube" icon="cube">
+    A unit cube mesh. Great for boxes, walls, floors, or any rectangular solid.
+  </Card>
+  <Card title="Element.Sphere" icon="circle">
+    A sphere mesh. Ideal for balls, decorative objects, or planet-style renders.
+  </Card>
+  <Card title="Element.Plane" icon="square">
+    A flat quad mesh. Perfect for floors, backgrounds, and shadow-receiver planes.
+  </Card>
+</CardGroup>
+
+## Signatures
+
+Each primitive accepts a single optional `Modifier3D` that controls its position, rotation, and size in world space:
+
+```kotlin
+@Composable
+fun Element.Cube(modifier: Modifier3D = Modifier3D.Default)
+
+@Composable
+fun Element.Sphere(modifier: Modifier3D = Modifier3D.Default)
+
+@Composable
+fun Element.Plane(modifier: Modifier3D = Modifier3D.Default)
+```
+
+## Placing Elements
+
+The following example places all three primitives in one scene. The values are taken directly from the library's sample `MainActivity`:
+
+```kotlin
+Scene(
+    modifier = Modifier.fillMaxSize(),
+    renderHostFactory = DefaultSceneRenderHostFactory,
+    cameraState = cameraState,
+    gestures = Gestures.orbit(),
+) {
+    Element.Cube(
+        modifier = Modifier3D.Default
+            .rotateY(35f.deg)
+            .rotateZ(18f.deg)
+            .size(1.4f.meters)
+            .position(0f.meters, 0f.meters, (-4f).meters),
+    )
+    Element.Sphere(
+        modifier = Modifier3D.Default
+            .size(1f.meters)
+            .position(2f.meters, 0f.meters, (-6f).meters),
+    )
+    Element.Plane(
+        modifier = Modifier3D.Default
+            .size(8f.meters, 0.1f.meters, 8f.meters)
+            .position(0f.meters, (-1.2f).meters, (-5f).meters),
+    )
+}
+```
+
+The `Plane` above is sized to 8 × 0.1 × 8 meters and pushed down by 1.2 meters to act as a floor below the cube and sphere.
+
+## Using Elements Reactively
+
+Because `Element.*` composables follow the same recomposition rules as any other `@Composable`, you can conditionally include or exclude them based on Compose state:
+
+```kotlin
+var showSphere by remember { mutableStateOf(true) }
+
+Scene(...) {
+    Element.Cube(
+        modifier = Modifier3D.Default
+            .size(1.4f.meters)
+            .position(0f.meters, 0f.meters, (-4f).meters),
+    )
+    if (showSphere) {
+        Element.Sphere(
+            modifier = Modifier3D.Default
+                .size(1f.meters)
+                .position(2f.meters, 0f.meters, (-6f).meters),
+        )
+    }
+}
+
+Button(onClick = { showSphere = !showSphere }) {
+    Text(if (showSphere) "Hide sphere" else "Show sphere")
+}
+```
+
+When `showSphere` flips, the scene graph is rebuilt on the next recomposition and the render host draws the updated list automatically.
+
+<Note>
+  Flat-color material is the default rendering mode in Core #1. PBR shading, textures, and custom materials are out of scope for this release.
+</Note>
+
+## Related
+
+- [Modifier3D](/guides/modifier3d) — position, rotate, and scale elements in 3D space
+- [Scene](/guides/scene) — the root composable that hosts all elements

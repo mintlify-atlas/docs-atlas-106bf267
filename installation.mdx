@@ -1,0 +1,172 @@
+---
+title: "Installing Spatial in Your Android Project"
+sidebarTitle: "Installation"
+description: "Add Spatial's Android library modules to your Gradle project. Covers module dependencies, minSdk requirements, and the Compose build configuration."
+---
+
+Spatial is a multi-module Android library that lives as a set of Gradle submodules inside your project. There is no Maven artifact to pull from a remote registry — you clone or copy the Spatial source tree alongside your app module, declare each submodule in `settings.gradle.kts`, and then add the three public modules as `project(...)` dependencies in your app's `build.gradle.kts`. The internal modules (`spatial-renderer`, `spatial-scene`, `spatial-core`, and others) are pulled in transitively and do not need to be declared explicitly by application code.
+
+---
+
+## Requirements
+
+Before adding Spatial, make sure your project meets the following baseline:
+
+| Requirement | Value |
+|---|---|
+| Android `minSdk` | **24** |
+| `compileSdk` | **36** |
+| Kotlin | **2.x** (tested with 2.2.10) |
+| Jetpack Compose | **Enabled** (`buildFeatures { compose = true }`) |
+| Device OpenGL ES | **3.0+** |
+
+<Warning>
+  Spatial requires an **OpenGL ES 3.0** capable device at runtime. While Android API 18 introduced GLES 3.0 in principle, Spatial's `minSdk` is set to **24**. Running on a device or emulator that does not expose an OpenGL ES 3.0 context will cause rendering to fail at surface creation.
+</Warning>
+
+---
+
+## Module Structure
+
+Spatial exposes three modules that application code imports directly. All other modules are internal implementation details resolved transitively by Gradle.
+
+### Public modules
+
+| Module | Package | Purpose |
+|---|---|---|
+| `spatial-compose` | `com.elitec.spatial_compose` | The declarative Compose API — `Scene`, `Element`, `Modifier3D`, `rememberCameraState`, `Gestures`, `CameraState` |
+| `spatial-compose-runtime-adapter` | `com.elitec.spatial_compose_runtime_adapter` | Provides `DefaultSceneRenderHostFactory`, which wires the Compose layer to the OpenGL ES renderer and manages the `AndroidView`-hosted GL surface lifecycle |
+| `spatial-units` | `com.elitec.spatial_units` | The typed units system — `meters`, `cm`, and `deg` extension properties used throughout `Modifier3D` chains and `rememberCameraState` |
+
+### Internal modules (transitive)
+
+These modules are part of the Spatial workspace but are never imported directly by application code:
+
+- **`spatial-core`** — shared public contracts and module orchestration
+- **`spatial-renderer`** — OpenGL ES shader pipelines, render loops, and buffer management
+- **`spatial-camera`** — orbit camera, zoom, inertia, and damping
+- **`spatial-motion`** — animation timelines, spring systems, and easing
+- **`spatial-gesture`** — multi-touch input, pinch zoom, orbit gesture, and velocity tracking
+- **`spatial-material`** — flat-color material abstraction and shader metadata
+- **`spatial-geometry`** — mesh and primitive generation (Cube, Sphere, Plane, Cylinder)
+- **`spatial-light`** — light contracts and metadata (active light evaluation is outside Core #1)
+- **`spatial-math`** — pure Kotlin math primitives: `Vec2`, `Vec3`, `Vec4`, `Quaternion`, `Matrix4`
+- **`spatial-scene`** — scene graph, node hierarchy, and transform propagation
+- **`spatial-runtime`** — Android runtime surface hosting
+
+---
+
+## Step 1 — Include Submodules in settings.gradle.kts
+
+Open (or create) your root `settings.gradle.kts` and include all Spatial modules alongside your existing app module:
+
+```kotlin
+// settings.gradle.kts
+rootProject.name = "YourApp"
+
+include(":app")
+
+// Spatial public modules
+include(":spatial-compose")
+include(":spatial-compose-runtime-adapter")
+include(":spatial-units")
+
+// Spatial internal modules (required transitively)
+include(":spatial-core")
+include(":spatial-math")
+include(":spatial-renderer")
+include(":spatial-scene")
+include(":spatial-camera")
+include(":spatial-motion")
+include(":spatial-gesture")
+include(":spatial-material")
+include(":spatial-geometry")
+include(":spatial-light")
+include(":spatial-runtime")
+```
+
+Gradle resolves module paths relative to the `rootProject.projectDir`. If you place the Spatial source tree in a subdirectory (e.g., `spatial/`), prefix the module names accordingly and set each module's project directory using `project(":spatial-compose").projectDir`:
+
+```kotlin
+include(":spatial-compose")
+project(":spatial-compose").projectDir = file("spatial/spatial-compose")
+```
+
+---
+
+## Step 2 — Add Dependencies in app/build.gradle.kts
+
+Declare only the three public modules as explicit dependencies in your app module. The internal modules are pulled in transitively:
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation(project(":spatial-compose"))
+    implementation(project(":spatial-compose-runtime-adapter"))
+    implementation(project(":spatial-units"))
+}
+```
+
+---
+
+## Step 3 — Enable Compose
+
+If you have not already enabled Jetpack Compose in your app module, add the following to `app/build.gradle.kts`:
+
+```kotlin
+// app/build.gradle.kts
+android {
+    compileSdk = 36
+
+    defaultConfig {
+        minSdk = 24
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    buildFeatures {
+        compose = true
+    }
+}
+```
+
+The `kotlin.plugin.compose` Gradle plugin must also be applied. In a version-catalog project:
+
+```kotlin
+// app/build.gradle.kts
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+}
+```
+
+With the corresponding entry in `gradle/libs.versions.toml`:
+
+```toml
+[versions]
+kotlin = "2.2.10"
+
+[plugins]
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+```
+
+---
+
+## Verify the Setup
+
+Once Gradle sync completes, verify the installation by importing the core symbols in any Kotlin file:
+
+```kotlin
+import com.elitec.spatial_compose.Scene
+import com.elitec.spatial_compose.Element
+import com.elitec.spatial_compose.Modifier3D
+import com.elitec.spatial_compose.rememberCameraState
+import com.elitec.spatial_compose_runtime_adapter.DefaultSceneRenderHostFactory
+import com.elitec.spatial_units.meters
+import com.elitec.spatial_units.deg
+```
+
+If all imports resolve without errors, Spatial is correctly installed. Head over to the [Quickstart](/quickstart) to render your first scene.

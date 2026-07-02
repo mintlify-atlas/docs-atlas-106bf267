@@ -1,0 +1,121 @@
+---
+title: "spatial-light: Lighting Contract API"
+sidebarTitle: "spatial-light"
+description: "API reference for the spatial-light module — the Light factory and LightData contract for modeling directional light metadata in Spatial scenes."
+---
+
+The `spatial-light` module provides the `Light` object and the `LightData` data contract. In Core #1, `LightData` is **metadata only** — current renderers render flat colors and do not evaluate light contributions. The contract exists so scene code is fully forward-compatible with future lighting milestones: you can author lighting intent today and the renderer will pick it up automatically when a lighting phase ships.
+
+## Import
+
+```kotlin
+import com.elitec.spatial_light.Light
+```
+
+**Module:** `spatial-light`
+
+---
+
+## Light object
+
+`Light` is a Kotlin `object` that exposes factory helpers for creating `LightData` contract values.
+
+### `Light.directional()`
+
+Creates directional light metadata using the shared `spatial-core` contract type.
+
+```kotlin
+object Light {
+    fun directional(
+        dirX: Float = 0f,
+        dirY: Float = -1f,
+        dirZ: Float = 0f,
+        intensity: Float = 1f,
+        r: Float = 1f,
+        g: Float = 1f,
+        b: Float = 1f,
+    ): LightData
+}
+```
+
+#### Parameters
+
+<ParamField path="dirX" type="Float" default="0.0">
+  The X component of the light direction vector. Together with `dirY` and `dirZ`, this defines the direction the light travels (not the position of the light source). The vector does not need to be normalized — renderers are expected to normalize it internally.
+</ParamField>
+
+<ParamField path="dirY" type="Float" default="-1.0">
+  The Y component of the light direction vector. The default value of `-1.0` points the light straight downward, simulating an overhead sun.
+</ParamField>
+
+<ParamField path="dirZ" type="Float" default="0.0">
+  The Z component of the light direction vector.
+</ParamField>
+
+<ParamField path="intensity" type="Float" default="1.0">
+  A scalar multiplier for the light's brightness. Values above `1.0` produce a brighter light; values below `1.0` produce a dimmer light. Must be non-negative.
+</ParamField>
+
+<ParamField path="r" type="Float" default="1.0">
+  The red channel of the light color in the `[0, 1]` range. Combined with `g` and `b`, the default values of `(1.0, 1.0, 1.0)` represent pure white light.
+</ParamField>
+
+<ParamField path="g" type="Float" default="1.0">
+  The green channel of the light color in the `[0, 1]` range.
+</ParamField>
+
+<ParamField path="b" type="Float" default="1.0">
+  The blue channel of the light color in the `[0, 1]` range.
+</ParamField>
+
+---
+
+## LightData
+
+`LightData` is a pure data contract type defined in `spatial-core`. `Light.directional()` constructs and returns one. It carries no rendering logic and has no dependency on Android, Compose, or OpenGL.
+
+```kotlin
+data class LightData(
+    val dirX: Float,
+    val dirY: Float,
+    val dirZ: Float,
+    val intensity: Float,
+    val r: Float,
+    val g: Float,
+    val b: Float,
+)
+```
+
+Because it is a standard Kotlin `data class`, `LightData` instances are immutable value objects with structural equality and a generated `copy()` method. This makes them safe to hold in Compose state and to compare across recompositions.
+
+---
+
+## Core #1 limitation
+
+<Warning>
+  `LightData` is **not evaluated** by the Core #1 renderer. All materials in Core #1 use flat-color shading — the material color is passed directly to the shader without any directional, ambient, or physically-based light contribution. Any `LightData` you create is silently ignored by the current render pipeline.
+</Warning>
+
+<Info>
+  You can create and store `LightData` values today for forward compatibility. When a lighting milestone ships and the renderer gains light evaluation support, it will read the `LightData` you have already defined — no scene-level API changes required.
+</Info>
+
+---
+
+## Example
+
+```kotlin
+import com.elitec.spatial_light.Light
+
+val sunLight = Light.directional(
+    dirX = 0.5f,
+    dirY = -0.8f,
+    dirZ = 0.3f,
+    intensity = 1.2f,
+    r = 1.0f,
+    g = 0.95f,
+    b = 0.8f,
+)
+```
+
+This creates a `LightData` describing a warm, slightly off-axis sun — direction tilted at roughly 34° from straight-down, intensity boosted 20% above default, and color tinted toward a soft yellow-white. The values are pure data and impose no runtime cost until an evaluating renderer is present.
