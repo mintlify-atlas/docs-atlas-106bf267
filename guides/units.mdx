@@ -1,5 +1,5 @@
 ---
-title: "Spatial Units: Meters, Centimeters, and Degrees"
+title: "Spatial Units: Distance, Angle, Meters, and Degrees"
 sidebarTitle: "Units"
 description: "Use Spatial's typed Distance and Angle values to write readable, unit-safe 3D transforms. Covers meters, centimeters, and degree extension properties."
 ---
@@ -137,7 +137,7 @@ Typed units shift an entire class of spatial bugs — wrong scale, wrong angular
 Kotlin's extension properties bind tightly to the receiver literal. Writing `-5f.meters` is parsed as `-(5f.meters)`, which would attempt to negate a `Distance` using the unary minus — an operator that `Distance` does not currently define. To express a negative distance literal, wrap the negative float in parentheses first:
 
 ```kotlin
-(-5f).meters   // ✅ correct — creates Distance(-0.05f in meters, i.e. –5 m)
+(-5f).meters   // ✅ correct — creates a Distance of –5 meters
 -5f.meters     // ❌ does not compile — no unary minus on Distance
 ```
 

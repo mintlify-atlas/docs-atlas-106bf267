@@ -1,5 +1,5 @@
 ---
-title: "Spatial: Declarative 3D Rendering for Android"
+title: "Spatial for Android: Declarative 3D Scene Rendering"
 sidebarTitle: "Home"
 description: "Build 3D scenes on Android with a Jetpack Compose-inspired API. No OpenGL knowledge required — Spatial handles the GPU so you focus on your scene."
 ---
@@ -7,16 +7,16 @@ description: "Build 3D scenes on Android with a Jetpack Compose-inspired API. No
 Spatial is a declarative 3D rendering library for Android that brings the mental model of Jetpack Compose to 3D scene creation. Describe your scene with `Scene`, `Element`, and `Modifier3D` — Spatial takes care of OpenGL ES 3.0, the render loop, camera math, and gesture handling automatically.
 
 <CardGroup cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/quickstart">
+  <Card title="Quickstart" icon="rocket" href="quickstart">
     Render your first 3D scene in under five minutes with a complete working example.
   </Card>
-  <Card title="Installation" icon="box" href="/installation">
+  <Card title="Installation" icon="box" href="installation">
     Add the Spatial modules to your Android project using Gradle.
   </Card>
-  <Card title="Building Scenes" icon="cube" href="/guides/scene">
+  <Card title="Building Scenes" icon="cube" href="guides/scene">
     Learn how Scene, Element, Modifier3D, and CameraState work together.
   </Card>
-  <Card title="API Reference" icon="code" href="/api/scene">
+  <Card title="API Reference" icon="code" href="api/scene">
     Full reference for every public composable, class, and function in the library.
   </Card>
 </CardGroup>
@@ -40,6 +40,18 @@ Most Android 3D graphics require deep OpenGL knowledge — setting up EGL contex
 ## A minimal scene
 
 ```kotlin CoreOneScene.kt
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.elitec.spatial_compose.Element
+import com.elitec.spatial_compose.Gestures
+import com.elitec.spatial_compose.Modifier3D
+import com.elitec.spatial_compose.Scene
+import com.elitec.spatial_compose.rememberCameraState
+import com.elitec.spatial_compose_runtime_adapter.DefaultSceneRenderHostFactory
+import com.elitec.spatial_units.deg
+import com.elitec.spatial_units.meters
+
 @Composable
 fun CoreOneScene() {
     val cameraState = rememberCameraState(
@@ -71,7 +83,7 @@ fun CoreOneScene() {
 
 <Steps>
   <Step title="Add Spatial to your project">
-    Include the `spatial-compose` and `spatial-compose-runtime-adapter` modules in your `build.gradle.kts`. See [Installation](/installation) for the full dependency list.
+    Include the `spatial-compose` and `spatial-compose-runtime-adapter` modules in your `build.gradle.kts`. See [Installation](installation) for the full dependency list.
   </Step>
   <Step title="Create a CameraState">
     Call `rememberCameraState(yaw, pitch, zoom)` inside a composable to get an observable camera you can read and animate programmatically.

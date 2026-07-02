@@ -1,7 +1,7 @@
 ---
 title: "Spatial Architecture: Modules, Layers, and Data Flow"
 sidebarTitle: "Architecture"
-description: "How Spatial organizes its modules into clean layers — Compose UI, core contracts, scene graph, and OpenGL renderer — with strict one-directional dependencies."
+description: "How Spatial organizes modules into clean layers — Compose UI, core contracts, scene graph, and renderer — with strict one-directional dependency rules."
 ---
 
 Spatial is built on a **hybrid architecture** that combines Clean Architecture, Feature-First organization, and Rendering-Oriented Pragmatism. The goal is not to satisfy a pattern checklist — it is to produce a codebase with strong ownership boundaries, low coupling, and the rendering performance required to run at 60 FPS on Android. Spatial deliberately avoids enterprise abstractions such as excessive repositories, DTO over-engineering, artificial use cases, and deep inheritance hierarchies wherever they would add complexity without adding value.
@@ -49,8 +49,11 @@ This strict ordering means you can test every layer below Compose without starti
 
     **`spatial-material`** — Flat-color material abstraction for Core #1; foundation for future texture and PBR materials.
   </Card>
+  <Card title="Runtime Module" icon="gear">
+    **`spatial-runtime`** — Orchestrates the rendering pipeline at runtime. `SpatialRuntime` implements `SpatialRenderLoopContract` and wires `RenderBackend`, `FrameScheduler`, and `CameraRuntimeContract` together. Exposes `requestFrame(nodes, cameraSnapshot)`, which schedules a vsync-aligned callback via `ChoreographerFrameScheduler`.
+  </Card>
   <Card title="Foundation Modules" icon="cubes">
-    **`spatial-renderer`** — OpenGL ES 3.0 render pipeline, shader compilation, buffer management, and Choreographer frame scheduling.
+    **`spatial-renderer`** — OpenGL ES 3.0 render pipeline, shader compilation, buffer management, and frame scheduling abstractions (`RenderBackend`, `FrameScheduler`).
 
     **`spatial-scene`** — Scene graph: node hierarchy, transform propagation, visibility, dirty flags, and parent-child relationships.
 

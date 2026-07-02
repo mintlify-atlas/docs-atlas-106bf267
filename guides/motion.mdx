@@ -1,5 +1,5 @@
 ---
-title: "Animating the Camera with MotionSpec"
+title: "Animating the Orbit Camera with MotionSpec in Spatial"
 sidebarTitle: "Motion"
 description: "Control how camera animations behave in Spatial using MotionSpec. Choose adaptive duration, instant jumps, or custom velocity and easing curves."
 ---
@@ -38,12 +38,14 @@ scope.launch {
 Duration is 0 ms — the camera teleports to the target position with no intermediate frames. Use this for programmatic resets or state restoration where an animated transition would be confusing:
 
 ```kotlin
-cameraState.animateTo(
-    yaw  = 0f.deg,
-    pitch = 0f.deg,
-    zoom  = 1f,
-    motion = MotionSpec.Instant,
-)
+scope.launch {
+    cameraState.animateTo(
+        yaw   = 0f.deg,
+        pitch = 0f.deg,
+        zoom  = 1f,
+        motion = MotionSpec.Instant,
+    )
+}
 ```
 
 <Tip>

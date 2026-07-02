@@ -1,10 +1,10 @@
 ---
-title: "Spatial Module Reference and Responsibilities"
+title: "Spatial Module Reference: Roles and Responsibilities"
 sidebarTitle: "Module Overview"
-description: "A reference for each Spatial module: what it does, its public API surface, and how it fits into the overall architecture."
+description: "A reference for every Spatial module — what it owns, its public API surface, its dependency direction, and how it connects to the overall architecture."
 ---
 
-Spatial is split into **13 focused modules**, each owning a single responsibility with no leakage across boundaries. This modularity means the math layer can run in a pure JVM test, the renderer can be swapped without touching any Compose code, and new features can be added as isolated modules rather than bolted onto a monolith. Despite the module count, most apps interact with only a small subset directly — the rest are pulled in automatically by Gradle.
+Spatial is split into **14 focused modules**, each owning a single responsibility with no leakage across boundaries. This modularity means the math layer can run in a pure JVM test, the renderer can be swapped without touching any Compose code, and new features can be added as isolated modules rather than bolted onto a monolith. Despite the module count, most apps interact with only a small subset directly — the rest are pulled in automatically by Gradle.
 
 <Note>
   For most apps, you only need three modules in your `build.gradle.kts`: `spatial-compose`, `spatial-compose-runtime-adapter`, and `spatial-units`. All others are pulled in transitively.
@@ -61,6 +61,25 @@ The bridge between the Compose layer and the real Android rendering pipeline. Wi
 - Wires `ChoreographerFrameScheduler` for vsync-aligned frame requests
 - Manages render host lifecycle: `onInitialize()` at construction, `dispose()` on `AndroidView.onRelease`
 - Forwards `updateScene(nodes)`, `updateCamera(snapshot)`, and `requestFrame()` calls to `SpatialRuntime`
+
+---
+
+### spatial-runtime
+
+| | |
+|---|---|
+| **Type** | Kotlin Library |
+| **Direct app dependency** | ❌ No — transitive via `spatial-compose-runtime-adapter` |
+
+The runtime orchestration layer. `SpatialRuntime` implements `SpatialRenderLoopContract` and is the central coordinator that wires the render backend, frame scheduler, and camera runtime together into a coherent render loop.
+
+**Key responsibilities:**
+- `SpatialRuntime` — `SpatialRenderLoopContract` implementation; owns `RenderBackend`, `FrameScheduler`, and `CameraRuntimeContract` references
+- `requestFrame(nodes, cameraSnapshot)` — schedules a vsync-aligned frame callback via `FrameScheduler`; on callback, calls `renderFrame(frameTimeNanos, nodes, cameraSnapshot)` which syncs the camera snapshot and calls `RenderBackend.render(RenderFrame(...))`
+- `onOrbitGesture(OrbitGestureDelta)` — translates gesture deltas into `CameraDelta` and applies them through the camera runtime
+- `onPinchGesture(PinchZoomDelta)` — translates pinch scale deltas into zoom `CameraDelta`
+- `onInitialize()` / `onShutdown()` — lifecycle management for the render loop
+- Keeps rendering and camera state synchronized across threads without exposing GL details to callers
 
 ---
 

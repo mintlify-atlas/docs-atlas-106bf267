@@ -1,5 +1,5 @@
 ---
-title: "CameraState — Orbit Camera State API"
+title: "CameraState — Orbit Camera State and Animation API"
 sidebarTitle: "CameraState"
 description: "API reference for CameraState. Read yaw, pitch, and zoom as Compose state, then orbit, zoom, jump, or animate the camera programmatically."
 ---
@@ -37,7 +37,7 @@ Creates and remembers a `CameraState` instance that survives recomposition. Pass
 </ParamField>
 
 <ParamField path="zoom" type="Float" default="1f">
-  Initial visual magnification factor. `1.0` is the default field of view. Values above `1.0` zoom in (objects appear larger); values below `1.0` zoom out. Clamped to `[MIN_ZOOM, MAX_ZOOM]` which are `0.3` and `4.0` respectively.
+  Initial visual magnification factor. `1.0` is the default field of view. Values above `1.0` zoom in (objects appear larger); values below `1.0` zoom out. Clamped to `[0.3, 4.0]`.
 </ParamField>
 
 ---
@@ -53,6 +53,20 @@ All properties below are backed by Compose state and will trigger recomposition 
 | `zoom` | `Float` | Current visual magnification factor. Clamped to `[0.3, 4.0]`. |
 | `version` | `Long` | Monotonically increasing counter incremented on every mutation. Useful for triggering effects that need to react to any camera change. |
 | `source` | `CameraUpdateSource` | Origin of the most recent update: `Gesture`, `Remote`, or `Animation`. |
+
+---
+
+## CameraUpdateSource
+
+`CameraUpdateSource` is an enum that identifies who last updated the camera. Values in source-precedence order (highest to lowest when the same frame/version has a conflict):
+
+```kotlin
+enum class CameraUpdateSource {
+    Gesture,
+    Remote,
+    Animation,
+}
+```
 
 ---
 
@@ -95,7 +109,7 @@ fun zoomTo(
 )
 ```
 
-Snaps the camera to an absolute zoom level. The value is clamped to `[MIN_ZOOM, MAX_ZOOM]` (0.3–4.0) before being applied.
+Snaps the camera to an absolute zoom level. The value is clamped to `[0.3, 4.0]` before being applied.
 
 ---
 

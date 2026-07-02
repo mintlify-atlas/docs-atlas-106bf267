@@ -1,5 +1,5 @@
 ---
-title: "Controlling the Orbit Camera with CameraState"
+title: "Controlling the Orbit Camera with CameraState in Spatial"
 sidebarTitle: "Camera"
 description: "Read and control the Spatial orbit camera using CameraState. Orbit, zoom, jump, and animate the camera programmatically from your composables."
 ---
@@ -104,12 +104,13 @@ cameraState.syncSnapshot(savedSnapshot)
 
 ```kotlin
 val scope = rememberCoroutineScope()
+val cameraSnapshot = cameraState.snapshot()
 
 Button(
     onClick = {
         scope.launch {
             cameraState.animateTo(
-                yaw   = (cameraState.yaw.toDegrees() + 90f).deg,
+                yaw   = (cameraSnapshot.yaw + 90f).deg,
                 pitch = (-18f).deg,
                 zoom  = 0.9f,
             )

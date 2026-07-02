@@ -1,10 +1,10 @@
 ---
-title: "MotionSpec — Camera Animation Profile API"
+title: "MotionSpec — Camera Animation Profile API Reference"
 sidebarTitle: "MotionSpec"
-description: "API reference for MotionSpec. Control camera animation duration, easing, and velocity used by CameraState.animateTo() in Spatial."
+description: "API reference for MotionSpec. Control camera animation duration, easing, and velocity used by CameraState.animateTo() in the Spatial library."
 ---
 
-`MotionSpec` is a `@Immutable` sealed class that describes how camera animations in Spatial compute their duration and interpolation curve when `CameraState.animateTo()` is called. It acts as a Compose-layer adapter over the shared `spatial-motion` planner, keeping the UI API clean while delegating duration math to `resolveCameraMotionPlan`. Three variants cover the common cases: `Adaptive` for natural-feeling camera moves that scale with the distance to travel, `Instant` for zero-duration jumps, and `custom(...)` for fine-tuned control over velocity targets and duration bounds.
+`MotionSpec` is an `@Immutable` sealed class that describes how camera animations in Spatial compute their duration and interpolation curve when `CameraState.animateTo()` is called. It acts as a Compose-layer adapter over the shared `spatial-motion` planner, keeping the UI API clean while delegating duration math to `resolveCameraMotionPlan`. Three variants cover the common cases: `Adaptive` for natural-feeling camera moves that scale with the distance to travel, `Instant` for zero-duration jumps, and `custom(...)` for fine-tuned control over velocity targets and duration bounds.
 
 ## Import
 
@@ -63,7 +63,7 @@ companion object {
 }
 ```
 
-Factory for a fully custom animation profile. All parameters default to the same values used by `MotionSpec.Adaptive`, so you only need to override the properties you want to change.
+Factory for a fully custom animation profile. Returns a `MotionSpec.Custom` instance. All parameters default to the same values used by `MotionSpec.Adaptive`, so you only need to override the properties you want to change.
 
 <ParamField path="minDurationMillis" type="Long" default="120L">
   The minimum animation duration in milliseconds. The adaptive planner will never produce a duration shorter than this value, even for very small angular deltas. Acts as a floor to prevent jarring sub-frame snaps.

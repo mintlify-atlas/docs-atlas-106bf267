@@ -1,7 +1,7 @@
 ---
-title: "Lighting in Spatial: Contracts and Core #1 Scope"
+title: "Lighting in Spatial: Core #1 Scope and LightData API"
 sidebarTitle: "Lighting"
-description: "Understand how lighting works in Spatial Core #1 — flat-color rendering, the LightData contract, and what active lighting evaluation means for future milestones."
+description: "How Spatial Core #1 handles lighting: flat-color rendering, the LightData metadata contract, SpatialMaterial stub, and what changes in future milestones."
 ---
 
 Spatial Core #1 uses a **flat-color material rendering model**. Every primitive is drawn with its material color passed directly to the fragment shader — there is no directional, ambient, or point light evaluation anywhere in the current render pipeline. Normals are not consulted, shadow maps are not computed, and no physically based shading math runs per fragment. This is a deliberate architectural choice: Core #1 focuses on declarative scene composition, cinematic camera motion, and smooth gestures. Real lighting is a future milestone. The `LightData` contract in `spatial-core` and the `Light` helpers in `spatial-light` exist so that scene authors can express lighting intent today, ensuring their code remains forward-compatible when a lighting milestone ships.
@@ -27,6 +27,20 @@ There is no normal vector evaluation, no light direction dot-product, no specula
 <Note>
 Real lighting evaluation — directional lights, ambient occlusion, PBR shading, and shadows — is intentionally outside Core #1 scope. These features are planned for a future milestone after the rendering, scene, camera, and Compose integration layers have been locked.
 </Note>
+
+---
+
+## Renderer background colors
+
+`SpatialGlRenderer` uses different GL clear colors depending on the renderer's current state. These colors serve as diagnostic feedback during development — they are not part of the scene graph and are not driven by any `MaterialData` or `LightData` value:
+
+| State | Red | Green | Blue | Description |
+|---|---|---|---|---|
+| Surface ready, no nodes | `0.18` | `0.02` | `0.02` | Dark red — surface is up but the scene graph has no renderable nodes |
+| Program ready, nodes present | `0.02` | `0.05` | `0.18` | Dark blue — normal rendering state |
+| Mesh/buffer error | `0.18` | `0.02` | `0.18` | Dark magenta — GL program or buffer setup failed |
+
+These values are defined as private constants in `SpatialGlRenderer` (`SURFACE_WITHOUT_NODES_CLEAR_COLOR`, `PROGRAM_READY_WITH_NODES_CLEAR_COLOR`, `MESH_OR_BUFFER_ERROR_CLEAR_COLOR`). They are purely a renderer-level concern and do not flow through `MaterialData` or the scene graph.
 
 ---
 

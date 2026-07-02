@@ -1,5 +1,5 @@
 ---
-title: "Gestures — Touch Input Configuration API"
+title: "Gestures — Touch Input Configuration API Reference"
 sidebarTitle: "Gestures"
 description: "API reference for Gestures, SceneGestures, and GestureSensitivity. Configure one-finger orbit and two-finger pinch-zoom for a Spatial scene."
 ---
@@ -21,7 +21,7 @@ import com.elitec.spatial_compose.SceneGestures
 ### Gestures.none
 
 ```kotlin
-fun Gestures.none(): SceneGestures
+fun none(): SceneGestures
 ```
 
 Disables all touch input on the scene. The returned `SceneGestures` has mode `SceneGestures.Mode.None`, with both `orbitEnabled` and `zoomEnabled` set to `false`. Use this when you want to drive the camera exclusively from code (e.g. `CameraState.animateTo()`).
@@ -31,7 +31,7 @@ Disables all touch input on the scene. The returned `SceneGestures` has mode `Sc
 ### Gestures.orbit
 
 ```kotlin
-fun Gestures.orbit(
+fun orbit(
     sensitivity: GestureSensitivity = GestureSensitivity.Adaptive,
 ): SceneGestures
 ```
@@ -47,7 +47,7 @@ Enables one-finger drag-to-orbit. A single pointer dragging across the scene rot
 ### Gestures.orbitAndZoom
 
 ```kotlin
-fun Gestures.orbitAndZoom(
+fun orbitAndZoom(
     sensitivity: GestureSensitivity = GestureSensitivity.Adaptive,
 ): SceneGestures
 ```
@@ -92,7 +92,7 @@ Applies a constant angular delta per input pixel. This preserves the direct, uns
 
 ## SceneGestures
 
-`SceneGestures` is a `@ConsistentCopyVisibility @Immutable` data class. It is the value type consumed by `Scene`. You obtain instances exclusively through the `Gestures` factory; direct construction is `internal`.
+`SceneGestures` is a `@ConsistentCopyVisibility @Immutable` data class with an `internal` constructor. It is the value type consumed by `Scene`. You obtain instances exclusively through the `Gestures` factory; direct construction is `internal`.
 
 | Property | Type | Description |
 |---|---|---|

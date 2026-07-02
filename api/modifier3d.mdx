@@ -1,5 +1,5 @@
 ---
-title: "Modifier3D — 3D Transform Chain API"
+title: "Modifier3D — 3D Transform Modifier API Reference"
 sidebarTitle: "Modifier3D"
 description: "API reference for Modifier3D. Chain position, rotation, scale, and size operations to transform 3D elements using typed Distance and Angle values."
 ---
@@ -17,10 +17,10 @@ import com.elitec.spatial_compose.Modifier3D
 ## Default
 
 ```kotlin
-val Modifier3D.Default: Modifier3D
+val Default: Modifier3D
 ```
 
-The canonical zero-transform instance. Position is `(0m, 0m, 0m)`, rotation is `null` on all axes (no rotation applied), scale is `(1m, 1m, 1m)`, and `size` is `null` (the renderer uses its own default mesh size). Start every modifier chain from `Modifier3D.Default`.
+The canonical zero-transform instance available on the `Modifier3D` companion object. Position is `(0m, 0m, 0m)`, rotation is zeroed on all axes, scale is `(1m, 1m, 1m)`, and `size` is `null` (the renderer uses its own default mesh size). Start every modifier chain from `Modifier3D.Default`.
 
 ---
 
@@ -29,13 +29,13 @@ The canonical zero-transform instance. Position is `(0m, 0m, 0m)`, rotation is `
 ### position
 
 ```kotlin
-fun Modifier3D.position(x: Float, y: Float, z: Float): Modifier3D
+fun position(x: Float, y: Float, z: Float): Modifier3D
 ```
 
 Shorthand overload that interprets the three `Float` arguments as metres. Internally calls the typed `Distance` overload with `x.meters`, `y.meters`, `z.meters`.
 
 ```kotlin
-fun Modifier3D.position(x: Distance, y: Distance, z: Distance): Modifier3D
+fun position(x: Distance, y: Distance, z: Distance): Modifier3D
 ```
 
 Typed overload. Sets the world-space position of the element using explicit `Distance` values. Prefer this form when working with the `spatial-units` type-safe distance API.
@@ -55,7 +55,7 @@ Typed overload. Sets the world-space position of the element using explicit `Dis
 ### rotateX
 
 ```kotlin
-fun Modifier3D.rotateX(angle: Angle): Modifier3D
+fun rotateX(angle: Angle): Modifier3D
 ```
 
 Applies a rotation around the local X axis. Replaces any previously set X rotation — rotations are stored per-axis and are not composed additively.
@@ -69,7 +69,7 @@ Applies a rotation around the local X axis. Replaces any previously set X rotati
 ### rotateY
 
 ```kotlin
-fun Modifier3D.rotateY(angle: Angle): Modifier3D
+fun rotateY(angle: Angle): Modifier3D
 ```
 
 Applies a rotation around the local Y axis (yaw). Use to spin an element horizontally.
@@ -83,7 +83,7 @@ Applies a rotation around the local Y axis (yaw). Use to spin an element horizon
 ### rotateZ
 
 ```kotlin
-fun Modifier3D.rotateZ(angle: Angle): Modifier3D
+fun rotateZ(angle: Angle): Modifier3D
 ```
 
 Applies a rotation around the local Z axis (roll).
@@ -97,7 +97,7 @@ Applies a rotation around the local Z axis (roll).
 ### scale
 
 ```kotlin
-fun Modifier3D.scale(x: Distance, y: Distance, z: Distance): Modifier3D
+fun scale(x: Distance, y: Distance, z: Distance): Modifier3D
 ```
 
 Sets the per-axis scale of the element in metres. The default scale is `(1m, 1m, 1m)`. Scale and `size` are separate concerns: `scale` multiplies the mesh in object space, while `size` overrides the rendered bounding box dimensions.
@@ -117,7 +117,7 @@ Sets the per-axis scale of the element in metres. The default scale is `(1m, 1m,
 ### size (uniform)
 
 ```kotlin
-fun Modifier3D.size(all: Distance): Modifier3D
+fun size(all: Distance): Modifier3D
 ```
 
 Sets the rendered size of the element to a uniform value on all three axes. The `all` distance is applied identically to width, height, and depth.
@@ -131,7 +131,7 @@ Sets the rendered size of the element to a uniform value on all three axes. The 
 ### size (per-axis)
 
 ```kotlin
-fun Modifier3D.size(width: Distance, height: Distance, depth: Distance): Modifier3D
+fun size(width: Distance, height: Distance, depth: Distance): Modifier3D
 ```
 
 Sets the rendered size of the element independently on each axis.
@@ -155,7 +155,7 @@ These properties are `internal` and not part of the public API, but they are lis
 | Property | Type | Description |
 |---|---|---|
 | `position` | `Vec3Distance` | World-space position as a typed three-component vector. |
-| `rotation` | `Rotation3D` | Per-axis rotation; each axis stores a nullable `Angle`. |
+| `rotation` | `Rotation3D` | Per-axis rotation stored as a `Rotation3D` value. |
 | `scale` | `Vec3Distance` | Per-axis scale vector; defaults to `(1m, 1m, 1m)`. |
 | `size` | `Vec3Distance?` | Optional explicit bounding-box size; `null` means the renderer uses its mesh defaults. |
 

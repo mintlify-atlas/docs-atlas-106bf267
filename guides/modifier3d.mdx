@@ -1,10 +1,10 @@
 ---
-title: "Transforming Elements with Modifier3D"
+title: "Transforming 3D Elements with Modifier3D in Spatial"
 sidebarTitle: "Modifier3D"
 description: "Position, rotate, and scale 3D elements in Spatial using Modifier3D. All transforms use typed units — meters for distance, degrees for angles."
 ---
 
-`Modifier3D` is Spatial's immutable transform chain — analogous to Compose's `Modifier` but designed for 3D space. Every operation returns a new `Modifier3D` instance, so chaining is safe and composable without mutation. Under the hood, the chain is resolved into a column-major 4×4 model matrix (T × Rz × Ry × Rx × S order) before each frame is submitted to the render host.
+`Modifier3D` is Spatial's immutable transform chain — analogous to Compose's `Modifier` but designed for 3D space. It is annotated `@Immutable`, so every operation returns a new `Modifier3D` instance rather than mutating the existing one. Chaining is therefore safe and composable. Under the hood, the chain is resolved into a column-major 4×4 model matrix (T × Rz × Ry × Rx × S order) before each frame is submitted to the render host.
 
 ## Default
 

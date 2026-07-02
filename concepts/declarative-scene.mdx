@@ -1,7 +1,7 @@
 ---
-title: "What is a Declarative 3D Scene?"
+title: "How Declarative 3D Scene Composition Works in Spatial"
 sidebarTitle: "Declarative Scene"
-description: "Understand how Spatial uses declarative composition to describe 3D scenes as state, automatically re-rendering when that state changes."
+description: "Learn how Spatial uses declarative composition to describe 3D scenes as state, driving automatic re-rendering whenever that state changes."
 ---
 
 In Spatial, you describe **what your 3D scene should look like**, not the sequence of GPU commands needed to draw it. This is the declarative model: you express intent, and the library figures out how to fulfill it. You place a cube at a position in world space, set its size in meters, and Spatial takes care of building the model matrix, binding the vertex buffer, setting shader uniforms, and issuing the draw call — none of which you ever write directly.
@@ -91,13 +91,13 @@ The `Scene` composable orchestrates the full pipeline from declarative descripti
     ```
   </Step>
   <Step title="Frame submission">
-    Both the node list and the camera snapshot are handed to the render host:
+    Both the node list and the camera snapshot are handed to the render host via the `renderSceneFrame` extension function:
 
     ```kotlin
     renderHostHolder.host?.renderSceneFrame(renderableNodes, cameraSnapshot)
     ```
 
-    `DefaultSceneRenderHostFactory` creates a `SpatialRuntimeSceneRenderHost`, which owns a `SpatialRuntime`. The runtime passes the data to `SpatialGlRenderer` via a `ChoreographerFrameScheduler`, where OpenGL draw calls are issued on the GL thread.
+    `renderSceneFrame` is a convenience wrapper that calls `updateScene(nodes)`, `updateCamera(cameraSnapshot)`, and then `requestFrame()` on the `SceneRenderHost`. `DefaultSceneRenderHostFactory` creates a `SpatialRuntimeSceneRenderHost`, which owns a `SpatialRuntime`. On `requestFrame()`, `SpatialRuntime.requestFrame(nodes, cameraSnapshot)` schedules a vsync-aligned callback via `ChoreographerFrameScheduler`, where OpenGL draw calls are issued on the GL thread.
   </Step>
 </Steps>
 
@@ -132,6 +132,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import com.elitec.spatial_compose.CameraState
 import com.elitec.spatial_compose.rememberCameraState
+import com.elitec.spatial_units.deg
 
 @Composable
 fun CameraDebugOverlay() {
